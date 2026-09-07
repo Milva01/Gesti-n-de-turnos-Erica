@@ -50,10 +50,66 @@ export default function App() {
   const [selectedClientIdToOpen, setSelectedClientIdToOpen] = useState<string | null>(null);
   const [agendaProfFilter, setAgendaProfFilter] = useState<string | undefined>(undefined);
 
+  const clientsRef = useRef<ClientRecord[]>([]);
+  const appointmentsRef = useRef<Appointment[]>([]);
+
+  const autoReconcileMissingClients = (
+    currentClients: ClientRecord[],
+    currentApts: Appointment[]
+  ) => {
+    if (!currentApts || currentApts.length === 0) return;
+    const existingNames = new Set(
+      currentClients.map((c) => c.fullName.trim().toLowerCase())
+    );
+    const missingApts = currentApts.filter(
+      (a) =>
+        a.clientName &&
+        a.clientName.trim() &&
+        !existingNames.has(a.clientName.trim().toLowerCase())
+    );
+
+    if (missingApts.length === 0) return;
+
+    const createdList: ClientRecord[] = [];
+    const seenNames = new Set<string>();
+
+    missingApts.forEach((apt) => {
+      const nameKey = apt.clientName.trim().toLowerCase();
+      if (!seenNames.has(nameKey)) {
+        seenNames.add(nameKey);
+        const newRecord: ClientRecord = {
+          id: apt.clientId || `cli-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          fullName: apt.clientName.trim(),
+          phone: apt.clientPhone?.trim() || 'Sin teléfono',
+          createdAt: apt.createdAt || new Date().toISOString(),
+          nextVisit: apt.date,
+          balanceDebt: 0,
+          totalPaid: 0,
+          payments: [],
+          technicalNotes: apt.treatmentNote ? `Tratamiento: ${apt.treatmentNote}` : undefined,
+        };
+        createdList.push(newRecord);
+        saveClientToFirebase(newRecord);
+      }
+    });
+
+    if (createdList.length > 0) {
+      const updated = [...currentClients, ...createdList];
+      clientsRef.current = updated;
+      setClients(updated);
+      saveStoredClients(updated);
+    }
+  };
+
   const loadLocalData = () => {
-    setProfessionals(getStoredProfessionals());
-    setClients(getStoredClients());
-    setAppointments(getStoredAppointments());
+    const profs = getStoredProfessionals();
+    const cls = getStoredClients();
+    const apts = getStoredAppointments();
+    setProfessionals(profs);
+    setClients(cls);
+    setAppointments(apts);
+    clientsRef.current = cls;
+    appointmentsRef.current = apts;
   };
 
   useEffect(() => {
@@ -84,12 +140,15 @@ export default function App() {
         if (local && local.length > 0) {
           syncAllClientsToFirebase(local);
           setClients(local);
+          clientsRef.current = local;
           return;
         }
       }
       // Direct live cloud synchronization: Any client added, edited, or deleted anywhere reflects instantly
+      clientsRef.current = cloudClients;
       setClients(cloudClients);
       saveStoredClients(cloudClients);
+      autoReconcileMissingClients(cloudClients, appointmentsRef.current);
     });
 
     const unsubAppointments = subscribeToAppointments((cloudApts, isEmpty) => {
@@ -99,12 +158,15 @@ export default function App() {
         if (local && local.length > 0) {
           syncAllAppointmentsToFirebase(local);
           setAppointments(local);
+          appointmentsRef.current = local;
           return;
         }
       }
       // Direct live cloud synchronization: Any turn booked, modified, or freed reflects instantly on all screens
+      appointmentsRef.current = cloudApts;
       setAppointments(cloudApts);
       saveStoredAppointments(cloudApts);
+      autoReconcileMissingClients(clientsRef.current, cloudApts);
     });
 
     const unsubProfessionals = subscribeToProfessionals((cloudProfs, isEmpty) => {

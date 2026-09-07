@@ -25,6 +25,7 @@ import {
   saveAppointmentToFirebase,
   deleteAppointmentFromFirebase,
   clearAllAppointmentsFromFirebase,
+  saveClientToFirebase,
 } from '../firebase';
 import {
   buildReminderMessage,
@@ -246,6 +247,45 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
     e.preventDefault();
     if (!modalClientName.trim()) return;
 
+    // Intelligent auto-linking & auto-creation of Client Record:
+    // If no client was chosen from dropdown, check if there's an existing client by name or phone,
+    // or automatically create the client in the salon database so the user never has to do it manually!
+    const cleanName = modalClientName.trim();
+    const cleanPhone = modalClientPhone.trim();
+    let effectiveClientId = modalSelectedClientId;
+    let localClientsList = [...clients];
+
+    if (!effectiveClientId) {
+      const existingMatch = clients.find(
+        (c) =>
+          c.fullName.toLowerCase() === cleanName.toLowerCase() ||
+          (cleanPhone && cleanPhone.length > 6 && c.phone === cleanPhone)
+      );
+
+      if (existingMatch) {
+        effectiveClientId = existingMatch.id;
+      } else {
+        // Automatically create new client in directory
+        const autoClient: ClientRecord = {
+          id: `cli-${Date.now()}`,
+          fullName: cleanName,
+          phone: cleanPhone || 'Sin teléfono',
+          createdAt: new Date().toISOString(),
+          nextVisit: selectedDate,
+          balanceDebt: 0,
+          totalPaid: 0,
+          payments: [],
+          technicalNotes: modalTreatmentNote.trim() ? `Tratamiento inicial: ${modalTreatmentNote.trim()}` : undefined,
+        };
+        effectiveClientId = autoClient.id;
+        localClientsList = [autoClient, ...clients];
+        saveClientToFirebase(autoClient);
+        if (onClientsChange) {
+          onClientsChange(localClientsList);
+        }
+      }
+    }
+
     if (editingAppointment) {
       // Update
       const updatedApt: Appointment = {
@@ -253,9 +293,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
         time: modalTime,
         slotNumber: modalSlot,
         professionalId: modalProfessionalId,
-        clientId: modalSelectedClientId || undefined,
-        clientName: modalClientName.trim(),
-        clientPhone: modalClientPhone.trim(),
+        clientId: effectiveClientId || undefined,
+        clientName: cleanName,
+        clientPhone: cleanPhone,
         treatmentNote: modalTreatmentNote.trim(),
         status: modalStatus,
         amount: modalAmount === '' ? 0 : Number(modalAmount),
@@ -274,9 +314,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
         time: modalTime,
         slotNumber: modalSlot,
         professionalId: modalProfessionalId,
-        clientId: modalSelectedClientId || undefined,
-        clientName: modalClientName.trim(),
-        clientPhone: modalClientPhone.trim(),
+        clientId: effectiveClientId || undefined,
+        clientName: cleanName,
+        clientPhone: cleanPhone,
         treatmentNote: modalTreatmentNote.trim(),
         status: modalStatus,
         amount: modalAmount === '' ? 0 : Number(modalAmount),
@@ -288,13 +328,16 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
     }
 
     // Also update client's nextVisit if client is linked
-    if (modalSelectedClientId && onClientsChange) {
-      const updatedClients = clients.map((c) => {
-        if (c.id === modalSelectedClientId) {
-          return {
+    if (effectiveClientId && onClientsChange) {
+      const updatedClients = localClientsList.map((c) => {
+        if (c.id === effectiveClientId) {
+          const updatedClient = {
             ...c,
             nextVisit: selectedDate,
+            phone: cleanPhone || c.phone,
           };
+          saveClientToFirebase(updatedClient);
+          return updatedClient;
         }
         return c;
       });

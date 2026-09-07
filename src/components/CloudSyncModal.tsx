@@ -261,92 +261,98 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             )}
           </div>
 
-          {/* 2. GITHUB REPOSITORY CONNECTION */}
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2">
-              <Github className="w-4 h-4 text-purple-400" />
-              <span className="font-bold text-white text-sm">2. Conectar con GitHub</span>
-            </div>
+          {/* DESPLIEGUE Y CÓDIGO FUENTE (COLAPSABLE PARA EL DESARROLLADOR) */}
+          <details className="rounded-2xl bg-slate-950/40 border border-slate-800/80 p-4 transition-all group">
+            <summary className="flex items-center justify-between text-xs font-bold text-slate-400 hover:text-white cursor-pointer select-none">
+              <span className="flex items-center gap-2">
+                <Github className="w-4 h-4 text-purple-400" />
+                <span>⚙️ Despliegue y Código Fuente (Para el Desarrollador)</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono group-open:rotate-180 transition-transform">
+                GitHub & Vercel ▼
+              </span>
+            </summary>
 
-            <p className="text-slate-300 leading-relaxed text-[12px]">
-              Para vincular todo el código fuente con tu cuenta de GitHub y versionar tu salón:
-            </p>
-
-            <div className="space-y-2.5 text-[11px]">
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                <div className="flex items-center gap-2 text-pink-300 font-bold">
-                  <span className="w-5 h-5 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center text-[10px]">A</span>
-                  <span>Método 1: Exportar directamente desde Google AI Studio</span>
+            <div className="pt-4 space-y-4 border-t border-slate-800/60 mt-3">
+              {/* 2. GITHUB REPOSITORY CONNECTION */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Github className="w-4 h-4 text-purple-400" />
+                  <span className="font-bold text-white text-sm">2. Conectar con GitHub</span>
                 </div>
-                <p className="text-slate-400 pl-7">
-                  En el menú superior de Google AI Studio (arriba a la derecha), haz clic en los tres puntos o el botón de ajustes y selecciona <strong>"Export to GitHub"</strong> (o "Download ZIP"). Creará un repositorio automático en tu perfil de GitHub.
+
+                <p className="text-slate-300 leading-relaxed text-[12px]">
+                  Para vincular todo el código fuente con tu cuenta de GitHub y versionar tu salón:
                 </p>
-              </div>
 
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-purple-300 font-bold">
-                    <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px]">B</span>
-                    <span>Método 2: Comandos Git tradicionales</span>
+                <div className="space-y-2.5 text-[11px]">
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                    <div className="flex items-center gap-2 text-pink-300 font-bold">
+                      <span className="w-5 h-5 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center text-[10px]">A</span>
+                      <span>Método 1: Exportar directamente desde Google AI Studio</span>
+                    </div>
+                    <p className="text-slate-400 pl-7">
+                      En el menú superior de Google AI Studio (arriba a la derecha), haz clic en los tres puntos o el botón de ajustes y selecciona <strong>"Export to GitHub"</strong>. Creará un repositorio automático en tu perfil de GitHub.
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleCopy(
-                        'git init\ngit add .\ngit commit -m "Erika Valentini - Salón de Belleza con Firebase"\ngit branch -M main\ngit remote add origin https://github.com/TU_USUARIO/erika-valentini-salon.git\ngit push -u origin main',
-                        'git-commands'
-                      )
-                    }
-                    className="inline-flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-bold"
-                  >
-                    {copiedKey === 'git-commands' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedKey === 'git-commands' ? 'Copiado' : 'Copiar comandos'}</span>
-                  </button>
-                </div>
-                <pre className="bg-slate-950 p-2.5 rounded-lg font-mono text-[10px] text-slate-300 overflow-x-auto">
+
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-purple-300 font-bold">
+                        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px]">B</span>
+                        <span>Método 2: Comandos Git tradicionales</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopy(
+                            'git init\ngit add .\ngit commit -m "Erika Valentini - Salón de Belleza con Firebase"\ngit branch -M main\ngit remote add origin https://github.com/TU_USUARIO/erika-valentini-salon.git\ngit push -u origin main',
+                            'git-commands'
+                          )
+                        }
+                        className="inline-flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-bold"
+                      >
+                        {copiedKey === 'git-commands' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedKey === 'git-commands' ? 'Copiado' : 'Copiar comandos'}</span>
+                      </button>
+                    </div>
+                    <pre className="bg-slate-950 p-2.5 rounded-lg font-mono text-[10px] text-slate-300 overflow-x-auto">
 {`git init
 git add .
 git commit -m "Erika Valentini - Salón de Belleza con Firebase"
 git branch -M main
 git remote add origin https://github.com/TU_USUARIO/erika-valentini-salon.git
 git push -u origin main`}
-                </pre>
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. VERCEL DEPLOYMENT */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-blue-400" />
+                    <span className="font-bold text-white text-sm">3. Desplegar en Vercel (1 Clic)</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-bold">
+                    vercel.json listo
+                  </span>
+                </div>
+
+                <p className="text-slate-300 leading-relaxed text-[12px]">
+                  Archivo <code>vercel.json</code> listo en la raíz del proyecto para compilar como SPA Vite:
+                </p>
+
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-300 pl-1 text-[11px]">
+                  <li>Entrá a tu cuenta en <strong className="text-white">vercel.com</strong> e iniciá sesión con GitHub.</li>
+                  <li>Hacé clic en <strong className="text-white">"Add New..." &gt; "Project"</strong>.</li>
+                  <li>Seleccioná el repositorio <strong className="text-pink-300">erika-valentini-salon</strong>.</li>
+                  <li>Hacé clic en <strong className="text-white">"Deploy"</strong>.</li>
+                </ol>
               </div>
             </div>
-          </div>
-
-          {/* 3. VERCEL DEPLOYMENT */}
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-blue-400" />
-                <span className="font-bold text-white text-sm">3. Desplegar en Vercel (1 Clic)</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-bold">
-                vercel.json listo
-              </span>
-            </div>
-
-            <p className="text-slate-300 leading-relaxed text-[12px]">
-              Ya hemos creado el archivo de configuración <code>vercel.json</code> en la raíz del proyecto para que Vercel compile el sitio como SPA Vite sin fallos:
-            </p>
-
-            <ol className="list-decimal list-inside space-y-1.5 text-slate-300 pl-1 text-[11px]">
-              <li>Entrá a tu cuenta en <strong className="text-white">vercel.com</strong> e iniciá sesión con GitHub.</li>
-              <li>Hacé clic en <strong className="text-white">"Add New..." &gt; "Project"</strong>.</li>
-              <li>Seleccioná el repositorio <strong className="text-pink-300">erika-valentini-salon</strong>.</li>
-              <li>Vercel detectará automáticamente <strong>Framework: Vite</strong> y <strong>Build: npm run build</strong>.</li>
-              <li>Hacé clic en <strong className="text-white">"Deploy"</strong>. ¡Tu app estará online con dominio SSL gratis (ej. <code>erika-valentini.vercel.app</code>) y sincronizada con Firebase!</li>
-            </ol>
-
-            <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="block text-amber-300 font-bold mb-0.5">¿Hiciste cambios o mejoras en AI Studio?</strong>
-                Recordá volver a hacer clic en <strong>"Export to GitHub"</strong> en el menú superior de AI Studio. Eso actualiza automáticamente tu repositorio en GitHub y Vercel se recompilará solo en segundos con todas las mejoras de persistencia y base de datos.
-              </div>
-            </div>
-          </div>
+          </details>
         </div>
 
         {/* Modal Footer */}
