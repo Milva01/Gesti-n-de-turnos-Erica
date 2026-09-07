@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "ClientRecord": {
+      "title": "ClientRecord",
+      "description": "Ficha técnica y personal de una clienta del salón",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "technicalNotes": { "type": "string" },
+        "lastVisit": { "type": "string" },
+        "nextVisit": { "type": "string" },
+        "balanceDebt": { "type": "number" },
+        "totalPaid": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "fullName"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Turno agendado en el salón",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "slotNumber": { "type": "number" },
+        "professionalId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "treatmentNote": { "type": "string" },
+        "status": { "type": "string" },
+        "amount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "date", "time", "slotNumber", "clientName"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "Estilista profesional del salón",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "specialty": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "bio": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "SalonInfo": {
+      "title": "SalonInfo",
+      "description": "Información general y de contacto del salón",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "hours": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "ClientRecord",
+      "description": "Colección de fichas de clientas"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Colección de turnos y citas"
+    },
+    "/professionals/{professionalId}": {
+      "schema": "Professional",
+      "description": "Colección de profesionales y estilistas"
+    },
+    "/salon_config/{configId}": {
+      "schema": "SalonInfo",
+      "description": "Configuración del salón"
+    }
+  }
+}

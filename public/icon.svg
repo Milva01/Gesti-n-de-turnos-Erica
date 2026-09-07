@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="100%" stop-color="#030712" />
+    </linearGradient>
+    <linearGradient id="circlePink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="50%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#db2777" />
+    </linearGradient>
+    <filter id="iconGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#ec4899" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Dark Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Subtle Outer Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#ec4899" stroke-width="2" opacity="0.2" />
+
+  <!-- The Iconic Erika Valentini Magenta Circle -->
+  <circle
+    cx="210"
+    cy="210"
+    r="135"
+    fill="none"
+    stroke="url(#circlePink)"
+    stroke-width="32"
+    stroke-linecap="round"
+    filter="url(#iconGlow)"
+  />
+
+  <!-- Monogram text 'ev' / 'erika' in pure white -->
+  <text
+    x="180"
+    y="215"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="105"
+    font-weight="900"
+    letter-spacing="-4"
+    fill="#ffffff"
+  >
+    erika
+  </text>
+  <text
+    x="200"
+    y="310"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="95"
+    font-weight="900"
+    letter-spacing="-3"
+    fill="#ffffff"
+  >
+    valentini
+  </text>
+
+  <!-- Hair swoosh curve -->
+  <path
+    d="M 180 345 Q 260 325 380 350"
+    fill="none"
+    stroke="#f472b6"
+    stroke-width="4"
+    stroke-linecap="round"
+    opacity="0.7"
+  />
+
+  <text
+    x="220"
+    y="380"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="28"
+    font-weight="500"
+    letter-spacing="2"
+    fill="#fbcfe8"
+  >
+    estilo en tus cabellos
+  </text>
+</svg>

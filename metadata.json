@@ -1,0 +1,6 @@
+{
+  "name": "Gestión de Turnos Peluquería",
+  "description": "Sistema de gestión de agenda de 6:30 a 14:00, turnos simultáneos y fichas de clientas para Erika Valentini.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
