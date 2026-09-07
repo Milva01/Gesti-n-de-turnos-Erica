@@ -45,6 +45,9 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
         },
         devOptions: {
           enabled: true,

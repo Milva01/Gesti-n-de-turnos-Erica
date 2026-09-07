@@ -1,8 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
   getFirestore,
   collection,
   doc,
@@ -15,30 +14,42 @@ import {
 import { Appointment, ClientRecord, Professional, SalonInfo } from './types';
 import appletConfig from '../firebase-applet-config.json';
 
+// Built-in fail-safe credentials so Vercel builds always have the exact cloud project configuration
+const EMBEDDED_FIREBASE_CONFIG = {
+  projectId: 'gen-lang-client-0602731525',
+  appId: '1:8693738040:web:e451bf9b7a18df629b94cd',
+  apiKey: 'AIzaSyDcaQiCdIiB1UxKOz9OmTCDzHuMT4K2iyA',
+  authDomain: 'gen-lang-client-0602731525.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-gestindeturnospe-59e1d11f-e0fa-4fb0-8047-7179a3ea4c09',
+  storageBucket: 'gen-lang-client-0602731525.firebasestorage.app',
+  messagingSenderId: '8693738040',
+};
+
 const rawConfig = appletConfig || ({} as any);
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawConfig.apiKey || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawConfig.authDomain || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawConfig.projectId || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || rawConfig.storageBucket || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || rawConfig.messagingSenderId || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || rawConfig.appId || '',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawConfig.apiKey || EMBEDDED_FIREBASE_CONFIG.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawConfig.authDomain || EMBEDDED_FIREBASE_CONFIG.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawConfig.projectId || EMBEDDED_FIREBASE_CONFIG.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || rawConfig.storageBucket || EMBEDDED_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || rawConfig.messagingSenderId || EMBEDDED_FIREBASE_CONFIG.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || rawConfig.appId || EMBEDDED_FIREBASE_CONFIG.appId,
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 const targetDatabaseId =
-  import.meta.env.VITE_FIRESTORE_DATABASE_ID || rawConfig.firestoreDatabaseId || undefined;
+  import.meta.env.VITE_FIRESTORE_DATABASE_ID ||
+  rawConfig.firestoreDatabaseId ||
+  EMBEDDED_FIREBASE_CONFIG.firestoreDatabaseId;
 
 let firestoreInstance;
 try {
+  // Use memoryLocalCache to eliminate IndexedDB cross-tab lock deadlocks and stale device caches
   firestoreInstance = initializeFirestore(
     app,
     {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+      localCache: memoryLocalCache(),
       experimentalAutoDetectLongPolling: true,
       ignoreUndefinedProperties: true,
     },
@@ -66,50 +77,62 @@ export const salonConfigDoc = doc(db, 'salon_config', 'main');
 // REAL-TIME LISTENERS
 // ==========================================
 
-export const subscribeToClients = (callback: (clients: ClientRecord[], isEmpty: boolean) => void) => {
+export const subscribeToClients = (
+  callback: (clients: ClientRecord[], isEmpty: boolean) => void,
+  onError?: (err: any) => void
+) => {
   return onSnapshot(
     clientsCol,
     (snapshot) => {
       const items: ClientRecord[] = [];
       snapshot.forEach((docSnap) => {
-        items.push(docSnap.data() as ClientRecord);
+        items.push({ id: docSnap.id, ...docSnap.data() } as ClientRecord);
       });
       callback(items, snapshot.empty);
     },
     (error) => {
       console.warn('Error reading clients from Firestore:', error);
+      if (onError) onError(error);
     }
   );
 };
 
-export const subscribeToAppointments = (callback: (appointments: Appointment[], isEmpty: boolean) => void) => {
+export const subscribeToAppointments = (
+  callback: (appointments: Appointment[], isEmpty: boolean) => void,
+  onError?: (err: any) => void
+) => {
   return onSnapshot(
     appointmentsCol,
     (snapshot) => {
       const items: Appointment[] = [];
       snapshot.forEach((docSnap) => {
-        items.push(docSnap.data() as Appointment);
+        items.push({ id: docSnap.id, ...docSnap.data() } as Appointment);
       });
       callback(items, snapshot.empty);
     },
     (error) => {
       console.warn('Error reading appointments from Firestore:', error);
+      if (onError) onError(error);
     }
   );
 };
 
-export const subscribeToProfessionals = (callback: (professionals: Professional[], isEmpty: boolean) => void) => {
+export const subscribeToProfessionals = (
+  callback: (professionals: Professional[], isEmpty: boolean) => void,
+  onError?: (err: any) => void
+) => {
   return onSnapshot(
     professionalsCol,
     (snapshot) => {
       const items: Professional[] = [];
       snapshot.forEach((docSnap) => {
-        items.push(docSnap.data() as Professional);
+        items.push({ id: docSnap.id, ...docSnap.data() } as Professional);
       });
       callback(items, snapshot.empty);
     },
     (error) => {
       console.warn('Error reading professionals from Firestore:', error);
+      if (onError) onError(error);
     }
   );
 };

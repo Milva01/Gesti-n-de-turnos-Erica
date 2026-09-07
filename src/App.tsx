@@ -31,7 +31,7 @@ import {
 } from './firebase';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { Appointment, ClientRecord, Professional, SalonInfo } from './types';
-import { CheckCircle2, ShieldCheck, Heart, Cloud } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, Heart, Cloud, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('professionals');
@@ -44,6 +44,8 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
+  const [cloudErrorMessage, setCloudErrorMessage] = useState<string | null>(null);
 
   // Avoid circular sync loops
   const isSyncingFromCloudRef = useRef(false);
@@ -135,41 +137,57 @@ export default function App() {
     verifyConnection();
 
     // 4. Real-time Firebase listeners for live multi-tab & multi-device sync
-    const unsubClients = subscribeToClients((cloudClients, isEmpty) => {
-      const local = getStoredClients() || [];
-      const deletedIds = getDeletedClientIds();
-      const cloudMap = new Map(cloudClients.map((c) => [c.id, c]));
+    const unsubClients = subscribeToClients(
+      (cloudClients) => {
+        setCloudSyncStatus('connected');
+        setCloudErrorMessage(null);
+        const local = getStoredClients() || [];
+        const deletedIds = getDeletedClientIds();
+        const cloudMap = new Map(cloudClients.map((c) => [c.id, c]));
 
-      // Merge local items that are not yet recognized by Firestore and not intentionally deleted
-      const unsyncedLocal = local.filter((c) => !cloudMap.has(c.id) && !deletedIds.has(c.id));
-      if (unsyncedLocal.length > 0) {
-        syncAllClientsToFirebase(unsyncedLocal);
+        // Merge local items that are not yet recognized by Firestore and not intentionally deleted
+        const unsyncedLocal = local.filter((c) => !cloudMap.has(c.id) && !deletedIds.has(c.id));
+        if (unsyncedLocal.length > 0) {
+          syncAllClientsToFirebase(unsyncedLocal);
+        }
+
+        const mergedClients = [...cloudClients, ...unsyncedLocal];
+        clientsRef.current = mergedClients;
+        setClients(mergedClients);
+        saveStoredClients(mergedClients);
+        autoReconcileMissingClients(mergedClients, appointmentsRef.current);
+      },
+      (err) => {
+        setCloudSyncStatus('error');
+        setCloudErrorMessage(`Aviso de nube: ${err?.message || 'Reconectando con base de datos de Google...'}`);
       }
+    );
 
-      const mergedClients = [...cloudClients, ...unsyncedLocal];
-      clientsRef.current = mergedClients;
-      setClients(mergedClients);
-      saveStoredClients(mergedClients);
-      autoReconcileMissingClients(mergedClients, appointmentsRef.current);
-    });
+    const unsubAppointments = subscribeToAppointments(
+      (cloudApts) => {
+        setCloudSyncStatus('connected');
+        setCloudErrorMessage(null);
+        const local = getStoredAppointments() || [];
+        const deletedAptIds = getDeletedAppointmentIds();
+        const cloudAptMap = new Map(cloudApts.map((a) => [a.id, a]));
 
-    const unsubAppointments = subscribeToAppointments((cloudApts, isEmpty) => {
-      const local = getStoredAppointments() || [];
-      const deletedAptIds = getDeletedAppointmentIds();
-      const cloudAptMap = new Map(cloudApts.map((a) => [a.id, a]));
+        // Merge local appointments that are not yet recognized by Firestore and not intentionally deleted
+        const unsyncedApts = local.filter((a) => !cloudAptMap.has(a.id) && !deletedAptIds.has(a.id));
+        if (unsyncedApts.length > 0) {
+          syncAllAppointmentsToFirebase(unsyncedApts);
+        }
 
-      // Merge local appointments that are not yet recognized by Firestore and not intentionally deleted
-      const unsyncedApts = local.filter((a) => !cloudAptMap.has(a.id) && !deletedAptIds.has(a.id));
-      if (unsyncedApts.length > 0) {
-        syncAllAppointmentsToFirebase(unsyncedApts);
+        const mergedApts = [...cloudApts, ...unsyncedApts];
+        appointmentsRef.current = mergedApts;
+        setAppointments(mergedApts);
+        saveStoredAppointments(mergedApts);
+        autoReconcileMissingClients(clientsRef.current, mergedApts);
+      },
+      (err) => {
+        setCloudSyncStatus('error');
+        setCloudErrorMessage(`Aviso de nube: ${err?.message || 'Reconectando con base de datos de Google...'}`);
       }
-
-      const mergedApts = [...cloudApts, ...unsyncedApts];
-      appointmentsRef.current = mergedApts;
-      setAppointments(mergedApts);
-      saveStoredAppointments(mergedApts);
-      autoReconcileMissingClients(clientsRef.current, mergedApts);
-    });
+    );
 
     const unsubProfessionals = subscribeToProfessionals((cloudProfs, isEmpty) => {
       if (isEmpty) {
@@ -276,6 +294,23 @@ export default function App() {
         appointmentsCount={appointments.length}
         onOpenCloudModal={() => setIsCloudModalOpen(true)}
       />
+
+      {cloudErrorMessage && (
+        <div className="max-w-7xl mx-auto px-4 pt-3 z-30 relative">
+          <div className="p-3 bg-amber-950/80 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 text-amber-200 text-xs shadow-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>{cloudErrorMessage}</span>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs shrink-0"
+            >
+              Reconectar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto pb-16 px-2 sm:px-4 z-10">
