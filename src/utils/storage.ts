@@ -105,3 +105,36 @@ export const saveStoredAppointments = (appointments: Appointment[]) => {
     console.error('Error saving appointments:', e);
   }
 };
+
+// Tombstone tracking for deleted items (ensures intentional deletions aren't resurrected while protecting offline additions)
+export const getDeletedClientIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('erika_deleted_client_ids');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (e) {}
+  return new Set();
+};
+
+export const markClientAsDeleted = (id: string) => {
+  try {
+    const set = getDeletedClientIds();
+    set.add(id);
+    localStorage.setItem('erika_deleted_client_ids', JSON.stringify(Array.from(set)));
+  } catch (e) {}
+};
+
+export const getDeletedAppointmentIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('erika_deleted_apt_ids');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (e) {}
+  return new Set();
+};
+
+export const markAppointmentAsDeleted = (id: string) => {
+  try {
+    const set = getDeletedAppointmentIds();
+    set.add(id);
+    localStorage.setItem('erika_deleted_apt_ids', JSON.stringify(Array.from(set)));
+  } catch (e) {}
+};

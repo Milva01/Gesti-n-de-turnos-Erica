@@ -5,6 +5,7 @@ import {
   deleteClientFromFirebase,
   clearAllClientsFromFirebase,
 } from '../firebase';
+import { markClientAsDeleted } from '../utils/storage';
 import {
   Users,
   Search,
@@ -199,6 +200,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
   // Delete client (Immediate non-blocking execution)
   const handleDeleteClient = (clientId: string) => {
+    markClientAsDeleted(clientId);
     deleteClientFromFirebase(clientId);
     const updated = clients.filter((c) => c.id !== clientId);
     onClientsChange(updated);

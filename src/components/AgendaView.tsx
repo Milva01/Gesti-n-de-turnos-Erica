@@ -27,6 +27,7 @@ import {
   clearAllAppointmentsFromFirebase,
   saveClientToFirebase,
 } from '../firebase';
+import { markAppointmentAsDeleted } from '../utils/storage';
 import {
   buildReminderMessage,
   cleanPhoneForWhatsApp,
@@ -349,6 +350,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // Delete / Free Slot (Immediate non-blocking execution)
   const handleDeleteAppointment = (id: string) => {
+    markAppointmentAsDeleted(id);
     deleteAppointmentFromFirebase(id);
     const updated = appointments.filter((a) => a.id !== id);
     onAppointmentsChange(updated);
@@ -359,7 +361,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   // Clear appointments for current day
   const handleClearDay = () => {
     const toDelete = appointments.filter((a) => a.date === selectedDate);
-    toDelete.forEach((a) => deleteAppointmentFromFirebase(a.id));
+    toDelete.forEach((a) => {
+      markAppointmentAsDeleted(a.id);
+      deleteAppointmentFromFirebase(a.id);
+    });
     const updated = appointments.filter((a) => a.date !== selectedDate);
     onAppointmentsChange(updated);
     setShowClearModal(false);

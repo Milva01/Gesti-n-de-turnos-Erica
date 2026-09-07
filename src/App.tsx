@@ -15,6 +15,8 @@ import {
   saveStoredAppointments,
   saveStoredClients,
   saveStoredProfessionals,
+  getDeletedClientIds,
+  getDeletedAppointmentIds,
 } from './utils/storage';
 import {
   db,
@@ -134,39 +136,39 @@ export default function App() {
 
     // 4. Real-time Firebase listeners for live multi-tab & multi-device sync
     const unsubClients = subscribeToClients((cloudClients, isEmpty) => {
-      if (isEmpty) {
-        // If Firestore is completely empty (first run), check if there is local data to seed
-        const local = getStoredClients();
-        if (local && local.length > 0) {
-          syncAllClientsToFirebase(local);
-          setClients(local);
-          clientsRef.current = local;
-          return;
-        }
+      const local = getStoredClients() || [];
+      const deletedIds = getDeletedClientIds();
+      const cloudMap = new Map(cloudClients.map((c) => [c.id, c]));
+
+      // Merge local items that are not yet recognized by Firestore and not intentionally deleted
+      const unsyncedLocal = local.filter((c) => !cloudMap.has(c.id) && !deletedIds.has(c.id));
+      if (unsyncedLocal.length > 0) {
+        syncAllClientsToFirebase(unsyncedLocal);
       }
-      // Direct live cloud synchronization: Any client added, edited, or deleted anywhere reflects instantly
-      clientsRef.current = cloudClients;
-      setClients(cloudClients);
-      saveStoredClients(cloudClients);
-      autoReconcileMissingClients(cloudClients, appointmentsRef.current);
+
+      const mergedClients = [...cloudClients, ...unsyncedLocal];
+      clientsRef.current = mergedClients;
+      setClients(mergedClients);
+      saveStoredClients(mergedClients);
+      autoReconcileMissingClients(mergedClients, appointmentsRef.current);
     });
 
     const unsubAppointments = subscribeToAppointments((cloudApts, isEmpty) => {
-      if (isEmpty) {
-        // If Firestore is completely empty (first run), check if there are local appointments to seed
-        const local = getStoredAppointments();
-        if (local && local.length > 0) {
-          syncAllAppointmentsToFirebase(local);
-          setAppointments(local);
-          appointmentsRef.current = local;
-          return;
-        }
+      const local = getStoredAppointments() || [];
+      const deletedAptIds = getDeletedAppointmentIds();
+      const cloudAptMap = new Map(cloudApts.map((a) => [a.id, a]));
+
+      // Merge local appointments that are not yet recognized by Firestore and not intentionally deleted
+      const unsyncedApts = local.filter((a) => !cloudAptMap.has(a.id) && !deletedAptIds.has(a.id));
+      if (unsyncedApts.length > 0) {
+        syncAllAppointmentsToFirebase(unsyncedApts);
       }
-      // Direct live cloud synchronization: Any turn booked, modified, or freed reflects instantly on all screens
-      appointmentsRef.current = cloudApts;
-      setAppointments(cloudApts);
-      saveStoredAppointments(cloudApts);
-      autoReconcileMissingClients(clientsRef.current, cloudApts);
+
+      const mergedApts = [...cloudApts, ...unsyncedApts];
+      appointmentsRef.current = mergedApts;
+      setAppointments(mergedApts);
+      saveStoredAppointments(mergedApts);
+      autoReconcileMissingClients(clientsRef.current, mergedApts);
     });
 
     const unsubProfessionals = subscribeToProfessionals((cloudProfs, isEmpty) => {
@@ -203,11 +205,13 @@ export default function App() {
   const handleClientsChange = (updated: ClientRecord[]) => {
     setClients(updated);
     saveStoredClients(updated);
+    syncAllClientsToFirebase(updated);
   };
 
   const handleAppointmentsChange = (updated: Appointment[]) => {
     setAppointments(updated);
     saveStoredAppointments(updated);
+    syncAllAppointmentsToFirebase(updated);
     showToast('Agenda sincronizada');
   };
 
@@ -268,6 +272,8 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         debtClientsCount={debtClientsCount}
+        clientsCount={clients.length}
+        appointmentsCount={appointments.length}
         onOpenCloudModal={() => setIsCloudModalOpen(true)}
       />
 

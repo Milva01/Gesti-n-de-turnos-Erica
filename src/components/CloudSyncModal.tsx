@@ -18,6 +18,7 @@ import {
   Activity,
   Users,
   Share2,
+  RotateCw,
 } from 'lucide-react';
 import config from '../../firebase-applet-config.json';
 import { testFirestoreConnection } from '../firebase';
@@ -95,6 +96,26 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     a.download = `erika-valentini-respaldo-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleHardReload = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.error('Error clearing cache:', e);
+    }
+    window.location.reload();
   };
 
   return (
@@ -220,6 +241,15 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 >
                   <Download className="w-3.5 h-3.5 text-blue-400" />
                   <span>Descargar Copia JSON</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleHardReload}
+                  title="Elimina la caché del navegador y recarga la versión más reciente"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30 text-xs font-semibold transition"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Recargar Última Versión</span>
                 </button>
               </div>
 
