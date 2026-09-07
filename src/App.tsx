@@ -78,51 +78,33 @@ export default function App() {
 
     // 4. Real-time Firebase listeners for live multi-tab & multi-device sync
     const unsubClients = subscribeToClients((cloudClients, isEmpty) => {
-      const local = getStoredClients();
-      const mergedMap = new Map<string, ClientRecord>();
-
-      // Load all cloud clients from Firestore
-      cloudClients.forEach((c) => mergedMap.set(c.id, c));
-
-      // Preserve any client in local cache that isn't in cloud yet and persist it
-      local.forEach((localClient) => {
-        if (!mergedMap.has(localClient.id)) {
-          mergedMap.set(localClient.id, localClient);
-          saveClientToFirebase(localClient);
+      if (isEmpty) {
+        // If Firestore is completely empty (first run), check if there is local data to seed
+        const local = getStoredClients();
+        if (local && local.length > 0) {
+          syncAllClientsToFirebase(local);
+          setClients(local);
+          return;
         }
-      });
-
-      const finalClients = Array.from(mergedMap.values());
-      isSyncingFromCloudRef.current = true;
-      setClients(finalClients);
-      saveStoredClients(finalClients);
-      setTimeout(() => {
-        isSyncingFromCloudRef.current = false;
-      }, 300);
+      }
+      // Direct live cloud synchronization: Any client added, edited, or deleted anywhere reflects instantly
+      setClients(cloudClients);
+      saveStoredClients(cloudClients);
     });
 
     const unsubAppointments = subscribeToAppointments((cloudApts, isEmpty) => {
-      const local = getStoredAppointments();
-      const mergedMap = new Map<string, Appointment>();
-
-      // Load all cloud appointments from Firestore
-      cloudApts.forEach((a) => mergedMap.set(a.id, a));
-
-      // Preserve any appointment in local cache that isn't in cloud yet and persist it
-      local.forEach((localApt) => {
-        if (!mergedMap.has(localApt.id)) {
-          mergedMap.set(localApt.id, localApt);
-          saveAppointmentToFirebase(localApt);
+      if (isEmpty) {
+        // If Firestore is completely empty (first run), check if there are local appointments to seed
+        const local = getStoredAppointments();
+        if (local && local.length > 0) {
+          syncAllAppointmentsToFirebase(local);
+          setAppointments(local);
+          return;
         }
-      });
-
-      const finalApts = Array.from(mergedMap.values());
-      isSyncingFromCloudRef.current = true;
-      setAppointments(finalApts);
-      saveStoredAppointments(finalApts);
-      setTimeout(() => {
-        isSyncingFromCloudRef.current = false;
-      }, 300);
+      }
+      // Direct live cloud synchronization: Any turn booked, modified, or freed reflects instantly on all screens
+      setAppointments(cloudApts);
+      saveStoredAppointments(cloudApts);
     });
 
     const unsubProfessionals = subscribeToProfessionals((cloudProfs, isEmpty) => {

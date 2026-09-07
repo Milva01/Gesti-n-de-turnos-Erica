@@ -16,6 +16,8 @@ import {
   Download,
   Upload,
   Activity,
+  Users,
+  Share2,
 } from 'lucide-react';
 import config from '../../firebase-applet-config.json';
 import { testFirestoreConnection } from '../firebase';
@@ -124,6 +126,43 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
         {/* Modal Content */}
         <div className="py-5 space-y-5 text-xs">
+          {/* SECCIÓN MULTIUSUARIO Y ACCESO DEL EQUIPO */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-950/70 to-pink-950/30 border border-purple-500/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-pink-400" />
+                <span className="font-bold text-white text-sm">Acceso Multiusuario Libre (Cualquier Ingresante)</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-pink-500/15 text-pink-300 border border-pink-500/30 text-[10px] font-bold">
+                Sin Login • Acceso Directo
+              </span>
+            </div>
+
+            <p className="text-slate-200 leading-relaxed text-[12px]">
+              Cualquier persona que abra el enlace de la aplicación (Erika, peluqueras, recepcionistas, ayudantes) tiene <strong>permiso total e inmediato</strong> para:
+            </p>
+
+            <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1 text-[11px]">
+              <li><strong className="text-white">Cargar y editar clientas</strong> (teléfonos, notas técnicas, deudas y pagos).</li>
+              <li><strong className="text-white">Agendar, mover y liberar turnos</strong> en cualquier fecha y horario.</li>
+              <li><strong className="text-white">Ver cambios en vivo</strong>: si una persona crea un turno, aparece en la pantalla de los demás en menos de 1 segundo sin necesidad de recargar.</li>
+            </ul>
+
+            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-slate-400 text-[11px]">
+                Enlace actual de la app para compartir con tu equipo:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleCopy(window.location.origin, 'app-link')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold transition shadow-md shadow-pink-600/20"
+              >
+                {copiedKey === 'app-link' ? <Check className="w-3.5 h-3.5 text-white" /> : <Share2 className="w-3.5 h-3.5" />}
+                <span>{copiedKey === 'app-link' ? '¡Link Copiado!' : 'Copiar Link para el Equipo'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* 1. FIREBASE STATUS (ACTIVE & PERSISTENT) */}
           <div className="p-4 rounded-2xl bg-slate-950/70 border border-emerald-500/30 space-y-3">
             <div className="flex items-center justify-between">
