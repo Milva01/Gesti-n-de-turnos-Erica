@@ -14,6 +14,10 @@
         "nextVisit": { "type": "string" },
         "balanceDebt": { "type": "number" },
         "totalPaid": { "type": "number" },
+        "payments": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "fullName"]
@@ -35,6 +39,8 @@
         "status": { "type": "string" },
         "amount": { "type": "number" },
         "paidAmount": { "type": "number" },
+        "reminderSent": { "type": "boolean" },
+        "reminderSentAt": { "type": "string" },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "date", "time", "slotNumber", "clientName"]

@@ -21,6 +21,8 @@ import {
   subscribeToClients,
   subscribeToAppointments,
   subscribeToProfessionals,
+  saveClientToFirebase,
+  saveAppointmentToFirebase,
   syncAllClientsToFirebase,
   syncAllAppointmentsToFirebase,
   saveProfessionalsToFirebase,
@@ -75,25 +77,62 @@ export default function App() {
     verifyConnection();
 
     // 4. Real-time Firebase listeners for live multi-tab & multi-device sync
-    const unsubClients = subscribeToClients((cloudClients) => {
+    const unsubClients = subscribeToClients((cloudClients, isEmpty) => {
+      const local = getStoredClients();
+      const mergedMap = new Map<string, ClientRecord>();
+
+      // Load all cloud clients from Firestore
+      cloudClients.forEach((c) => mergedMap.set(c.id, c));
+
+      // Preserve any client in local cache that isn't in cloud yet and persist it
+      local.forEach((localClient) => {
+        if (!mergedMap.has(localClient.id)) {
+          mergedMap.set(localClient.id, localClient);
+          saveClientToFirebase(localClient);
+        }
+      });
+
+      const finalClients = Array.from(mergedMap.values());
       isSyncingFromCloudRef.current = true;
-      setClients(cloudClients);
-      saveStoredClients(cloudClients);
+      setClients(finalClients);
+      saveStoredClients(finalClients);
       setTimeout(() => {
         isSyncingFromCloudRef.current = false;
       }, 300);
     });
 
-    const unsubAppointments = subscribeToAppointments((cloudApts) => {
+    const unsubAppointments = subscribeToAppointments((cloudApts, isEmpty) => {
+      const local = getStoredAppointments();
+      const mergedMap = new Map<string, Appointment>();
+
+      // Load all cloud appointments from Firestore
+      cloudApts.forEach((a) => mergedMap.set(a.id, a));
+
+      // Preserve any appointment in local cache that isn't in cloud yet and persist it
+      local.forEach((localApt) => {
+        if (!mergedMap.has(localApt.id)) {
+          mergedMap.set(localApt.id, localApt);
+          saveAppointmentToFirebase(localApt);
+        }
+      });
+
+      const finalApts = Array.from(mergedMap.values());
       isSyncingFromCloudRef.current = true;
-      setAppointments(cloudApts);
-      saveStoredAppointments(cloudApts);
+      setAppointments(finalApts);
+      saveStoredAppointments(finalApts);
       setTimeout(() => {
         isSyncingFromCloudRef.current = false;
       }, 300);
     });
 
-    const unsubProfessionals = subscribeToProfessionals((cloudProfs) => {
+    const unsubProfessionals = subscribeToProfessionals((cloudProfs, isEmpty) => {
+      if (isEmpty) {
+        const local = getStoredProfessionals();
+        if (local && local.length > 0) {
+          saveProfessionalsToFirebase(local);
+          return;
+        }
+      }
       if (cloudProfs.length > 0) {
         setProfessionals(cloudProfs);
         saveStoredProfessionals(cloudProfs);
@@ -120,18 +159,12 @@ export default function App() {
   const handleClientsChange = (updated: ClientRecord[]) => {
     setClients(updated);
     saveStoredClients(updated);
-    if (!isSyncingFromCloudRef.current) {
-      syncAllClientsToFirebase(updated);
-    }
   };
 
   const handleAppointmentsChange = (updated: Appointment[]) => {
     setAppointments(updated);
     saveStoredAppointments(updated);
-    if (!isSyncingFromCloudRef.current) {
-      syncAllAppointmentsToFirebase(updated);
-    }
-    showToast('Agenda sincronizada en Firebase');
+    showToast('Agenda sincronizada');
   };
 
   const handleForceSync = () => {

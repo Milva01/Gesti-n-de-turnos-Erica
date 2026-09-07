@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Cloud,
   CheckCircle2,
+  AlertCircle,
   ExternalLink,
   Github,
   Globe,
@@ -12,8 +13,13 @@ import {
   RefreshCw,
   Layers,
   ArrowRight,
+  Download,
+  Upload,
+  Activity,
 } from 'lucide-react';
 import config from '../../firebase-applet-config.json';
+import { testFirestoreConnection } from '../firebase';
+import { getStoredClients, getStoredAppointments, getStoredProfessionals } from '../utils/storage';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
@@ -33,6 +39,14 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   onForceSync,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    clientsCount: number;
+    appointmentsCount: number;
+    latencyMs: number;
+  } | null>(null);
 
   if (!isOpen) return null;
 
@@ -40,6 +54,45 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2500);
+  };
+
+  const handleRunTest = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await testFirestoreConnection();
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        ok: false,
+        message: err?.message || 'Error al conectar',
+        clientsCount: 0,
+        appointmentsCount: 0,
+        latencyMs: 0,
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleDownloadBackup = () => {
+    const clients = getStoredClients();
+    const apts = getStoredAppointments();
+    const profs = getStoredProfessionals();
+    const payload = {
+      version: '2.0',
+      exportedAt: new Date().toISOString(),
+      clients,
+      appointments: apts,
+      professionals: profs,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `erika-valentini-respaldo-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -109,16 +162,62 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               </div>
             </div>
 
-            {onForceSync && (
-              <div className="flex justify-end pt-1">
+            {/* Live Test and Diagnostics */}
+            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRunTest}
+                  disabled={isTesting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition disabled:opacity-50"
+                >
+                  <Activity className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+                  <span>{isTesting ? 'Comprobando conexión...' : 'Verificar conexión en vivo con Firebase'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadBackup}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Descargar Copia JSON</span>
+                </button>
+              </div>
+
+              {onForceSync && (
                 <button
                   type="button"
                   onClick={onForceSync}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-pink-400" />
-                  <span>Forzar sincronización ahora</span>
+                  <span>Forzar sincronización</span>
                 </button>
+              )}
+            </div>
+
+            {testResult && (
+              <div
+                className={`p-3 rounded-xl border text-[11px] space-y-1 ${
+                  testResult.ok
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold">
+                  {testResult.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400" />
+                  )}
+                  <span>{testResult.ok ? 'Diagnóstico Exitoso' : 'Fallo de Diagnóstico'}</span>
+                </div>
+                <p>{testResult.message}</p>
+                {testResult.ok && (
+                  <p className="text-emerald-300 font-mono text-[10px]">
+                    Confirmado en la nube: {testResult.clientsCount} clientas y {testResult.appointmentsCount} turnos.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -200,6 +299,14 @@ git push -u origin main`}
               <li>Vercel detectará automáticamente <strong>Framework: Vite</strong> y <strong>Build: npm run build</strong>.</li>
               <li>Hacé clic en <strong className="text-white">"Deploy"</strong>. ¡Tu app estará online con dominio SSL gratis (ej. <code>erika-valentini.vercel.app</code>) y sincronizada con Firebase!</li>
             </ol>
+
+            <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-amber-300 font-bold mb-0.5">¿Hiciste cambios o mejoras en AI Studio?</strong>
+                Recordá volver a hacer clic en <strong>"Export to GitHub"</strong> en el menú superior de AI Studio. Eso actualiza automáticamente tu repositorio en GitHub y Vercel se recompilará solo en segundos con todas las mejoras de persistencia y base de datos.
+              </div>
+            </div>
           </div>
         </div>
 

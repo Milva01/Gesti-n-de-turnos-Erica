@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { ClientRecord, ClientPayment, Appointment } from '../types';
 import {
+  saveClientToFirebase,
+  deleteClientFromFirebase,
+  clearAllClientsFromFirebase,
+} from '../firebase';
+import {
   Users,
   Search,
   Plus,
@@ -112,6 +117,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
     if (!activeClient) return;
     const updated = { ...activeClient, ...updatedData };
     setActiveClient(updated);
+    saveClientToFirebase(updated);
     const updatedList = clients.map((c) => (c.id === updated.id ? updated : c));
     onClientsChange(updatedList);
   };
@@ -176,6 +182,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
+    saveClientToFirebase(newClient);
     onClientsChange([newClient, ...clients]);
     setNewClientForm({
       fullName: '',
@@ -192,6 +199,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
   // Delete client (Immediate non-blocking execution)
   const handleDeleteClient = (clientId: string) => {
+    deleteClientFromFirebase(clientId);
     const updated = clients.filter((c) => c.id !== clientId);
     onClientsChange(updated);
     setActiveClient(null);
@@ -199,6 +207,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
   // Clear all clients completely
   const handleClearAllClients = () => {
+    clearAllClientsFromFirebase();
     onClientsChange([]);
     setActiveClient(null);
     setShowClearClientsModal(false);

@@ -118,11 +118,15 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenCloudModal}
-              title="Estado de base de datos Firebase y despliegue GitHub / Vercel"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition"
+              title="Memoria en la nube Firebase Firestore conectada"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition group"
             >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
               <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden md:inline text-[11px] font-bold">Firebase Cloud</span>
+              <span className="hidden sm:inline text-[11px] font-bold">Memoria Firebase</span>
             </button>
           )}
 

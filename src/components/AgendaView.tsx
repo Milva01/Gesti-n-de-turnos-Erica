@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Appointment, ClientRecord, Professional, AppointmentStatus } from '../types';
 import { AGENDA_TIME_SLOTS } from '../data/initialData';
 import {
@@ -17,7 +17,25 @@ import {
   Check,
   X,
   Sparkles,
+  MessageCircle,
+  Send,
 } from 'lucide-react';
+import { WhatsAppReminderModal } from './WhatsAppReminderModal';
+import {
+  saveAppointmentToFirebase,
+  deleteAppointmentFromFirebase,
+  clearAllAppointmentsFromFirebase,
+} from '../firebase';
+import {
+  buildReminderMessage,
+  cleanPhoneForWhatsApp,
+  getTomorrowDateStr,
+  getWhatsAppUrl,
+  isAroundReminderTime,
+  getReminderSettings,
+  playReminderChime,
+  showBrowserNotification,
+} from '../utils/whatsappReminder';
 
 interface AgendaViewProps {
   appointments: Appointment[];
@@ -61,8 +79,13 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   const [modalClientPhone, setModalClientPhone] = useState<string>('');
   const [modalTreatmentNote, setModalTreatmentNote] = useState<string>('');
   const [modalStatus, setModalStatus] = useState<AppointmentStatus>('confirmado');
-  const [modalAmount, setModalAmount] = useState<number>(15000);
-  const [modalPaidAmount, setModalPaidAmount] = useState<number>(15000);
+  const [modalAmount, setModalAmount] = useState<number | ''>('');
+  const [modalPaidAmount, setModalPaidAmount] = useState<number | ''>('');
+
+  // WhatsApp 14:00 hs Reminder Modal State
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [autoStartRunnerInModal, setAutoStartRunnerInModal] = useState(false);
+  const [reminderTargetDate, setReminderTargetDate] = useState<string>(getTomorrowDateStr());
 
   // Date Navigation Helpers
   const shiftDay = (days: number) => {
@@ -88,6 +111,57 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   const totalPossibleSlots = AGENDA_TIME_SLOTS.length * 2; // 16 intervals * 2 = 32 turnos
   const occupancyPercentage = Math.round((totalOccupied / totalPossibleSlots) * 100);
 
+  // WhatsApp 14:00 hs reminders helpers
+  const tomorrowDate = getTomorrowDateStr();
+  const tomorrowTurnos = appointments.filter(
+    (a) => a.date === tomorrowDate && a.status !== 'cancelado'
+  );
+  const tomorrowPending = tomorrowTurnos.filter((a) => !a.reminderSent).length;
+  const reminderSettings = getReminderSettings();
+  const reminderTimeStatus = isAroundReminderTime(reminderSettings.autoDispatchTime || '14:00');
+
+  // AUTO DISPATCH CHECKER (14:00 hs todos los días recordando para el día siguiente)
+  useEffect(() => {
+    const checkAutoDispatch = () => {
+      const currentSettings = getReminderSettings();
+      if (!currentSettings.enabled) return;
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (currentSettings.lastDispatchedDate === todayStr) return;
+
+      const timeStatus = isAroundReminderTime(currentSettings.autoDispatchTime || '14:00');
+      if (!timeStatus.isReady) return;
+
+      const tomorrowStr = getTomorrowDateStr();
+      const pendingForTomorrow = appointments.filter(
+        (a) => a.date === tomorrowStr && a.status !== 'cancelado' && !a.reminderSent
+      );
+
+      if (pendingForTomorrow.length > 0) {
+        if (currentSettings.notificationAudio) {
+          playReminderChime();
+        }
+        showBrowserNotification(
+          '⏰ Erika Valentini • Recordatorios (14:00 hs)',
+          `¡Son las 14:00 hs! Tenés ${pendingForTomorrow.length} clienta(s) para mañana pendientes de aviso por WhatsApp.`,
+          () => {
+            setReminderTargetDate(tomorrowStr);
+            setAutoStartRunnerInModal(currentSettings.autoOpenQueue);
+            setIsReminderModalOpen(true);
+          }
+        );
+        // Automatically open the reminder center
+        setReminderTargetDate(tomorrowStr);
+        setAutoStartRunnerInModal(currentSettings.autoOpenQueue);
+        setIsReminderModalOpen(true);
+      }
+    };
+
+    checkAutoDispatch();
+    const interval = setInterval(checkAutoDispatch, 20000);
+    return () => clearInterval(interval);
+  }, [appointments]);
+
   // Open modal to assign an empty slot
   const handleOpenNewAppointment = (time: string, slotNumber: 1 | 2) => {
     setEditingAppointment(null);
@@ -107,8 +181,8 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
     setModalClientPhone('');
     setModalTreatmentNote('');
     setModalStatus('confirmado');
-    setModalAmount(18000);
-    setModalPaidAmount(18000);
+    setModalAmount('');
+    setModalPaidAmount('');
     setIsModalOpen(true);
   };
 
@@ -123,9 +197,33 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
     setModalClientPhone(apt.clientPhone);
     setModalTreatmentNote(apt.treatmentNote || '');
     setModalStatus(apt.status);
-    setModalAmount(apt.amount || 0);
-    setModalPaidAmount(apt.paidAmount || 0);
+    setModalAmount(apt.amount !== undefined && apt.amount !== 0 ? apt.amount : '');
+    setModalPaidAmount(apt.paidAmount !== undefined && apt.paidAmount !== 0 ? apt.paidAmount : '');
     setIsModalOpen(true);
+  };
+
+  // Quick direct WhatsApp reminder trigger
+  const handleQuickSendWhatsApp = (e: React.MouseEvent, apt: Appointment) => {
+    e.stopPropagation();
+    const prof = professionals.find((p) => p.id === apt.professionalId);
+    const text = buildReminderMessage({
+      clientName: apt.clientName,
+      dateStr: apt.date,
+      time: apt.time,
+      treatmentNote: apt.treatmentNote,
+      professionalName: prof?.name || 'Erika Valentini',
+    });
+    const url = getWhatsAppUrl(apt.clientPhone, text);
+    if (!url) {
+      alert(`El teléfono de ${apt.clientName} (${apt.clientPhone || 'vacío'}) no es válido para WhatsApp.`);
+      return;
+    }
+    const nowStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const updatedApt = { ...apt, reminderSent: true, reminderSentAt: nowStr };
+    saveAppointmentToFirebase(updatedApt);
+    const updated = appointments.map((a) => (a.id === apt.id ? updatedApt : a));
+    onAppointmentsChange(updated);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Client dropdown selection
@@ -150,22 +248,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
     if (editingAppointment) {
       // Update
+      const updatedApt: Appointment = {
+        ...editingAppointment,
+        time: modalTime,
+        slotNumber: modalSlot,
+        professionalId: modalProfessionalId,
+        clientId: modalSelectedClientId || undefined,
+        clientName: modalClientName.trim(),
+        clientPhone: modalClientPhone.trim(),
+        treatmentNote: modalTreatmentNote.trim(),
+        status: modalStatus,
+        amount: modalAmount === '' ? 0 : Number(modalAmount),
+        paidAmount: modalPaidAmount === '' ? 0 : Number(modalPaidAmount),
+      };
+      saveAppointmentToFirebase(updatedApt);
       const updatedList = appointments.map((a) =>
-        a.id === editingAppointment.id
-          ? {
-              ...a,
-              time: modalTime,
-              slotNumber: modalSlot,
-              professionalId: modalProfessionalId,
-              clientId: modalSelectedClientId || undefined,
-              clientName: modalClientName.trim(),
-              clientPhone: modalClientPhone.trim(),
-              treatmentNote: modalTreatmentNote.trim(),
-              status: modalStatus,
-              amount: modalAmount,
-              paidAmount: modalPaidAmount,
-            }
-          : a
+        a.id === editingAppointment.id ? updatedApt : a
       );
       onAppointmentsChange(updatedList);
     } else {
@@ -181,10 +279,11 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
         clientPhone: modalClientPhone.trim(),
         treatmentNote: modalTreatmentNote.trim(),
         status: modalStatus,
-        amount: modalAmount,
-        paidAmount: modalPaidAmount,
+        amount: modalAmount === '' ? 0 : Number(modalAmount),
+        paidAmount: modalPaidAmount === '' ? 0 : Number(modalPaidAmount),
         createdAt: new Date().toISOString(),
       };
+      saveAppointmentToFirebase(newApt);
       onAppointmentsChange([...appointments, newApt]);
     }
 
@@ -207,6 +306,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // Delete / Free Slot (Immediate non-blocking execution)
   const handleDeleteAppointment = (id: string) => {
+    deleteAppointmentFromFirebase(id);
     const updated = appointments.filter((a) => a.id !== id);
     onAppointmentsChange(updated);
     setIsModalOpen(false);
@@ -215,6 +315,8 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // Clear appointments for current day
   const handleClearDay = () => {
+    const toDelete = appointments.filter((a) => a.date === selectedDate);
+    toDelete.forEach((a) => deleteAppointmentFromFirebase(a.id));
     const updated = appointments.filter((a) => a.date !== selectedDate);
     onAppointmentsChange(updated);
     setShowClearModal(false);
@@ -222,13 +324,16 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // Clear all demo appointments completely
   const handleClearAll = () => {
+    clearAllAppointmentsFromFirebase();
     onAppointmentsChange([]);
     setShowClearModal(false);
   };
 
   // Quick toggle status
   const handleQuickStatusChange = (apt: Appointment, newStatus: AppointmentStatus) => {
-    const updated = appointments.map((a) => (a.id === apt.id ? { ...a, status: newStatus } : a));
+    const updatedApt = { ...apt, status: newStatus };
+    saveAppointmentToFirebase(updatedApt);
+    const updated = appointments.map((a) => (a.id === apt.id ? updatedApt : a));
     onAppointmentsChange(updated);
   };
 
@@ -263,6 +368,57 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   return (
     <div className="w-full max-w-6xl mx-auto py-6 px-3 sm:px-6 space-y-6 animate-fade-in">
+      {/* BANNER: Disparador de Recordatorios WhatsApp para Mañana (14:00 hs) */}
+      {tomorrowTurnos.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-teal-950/60 border border-emerald-500/40 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/10">
+              <MessageCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-white text-base">
+                  Recordatorios WhatsApp de Mañana ({reminderSettings.autoDispatchTime || '14:00'} hs)
+                </h3>
+                {reminderTimeStatus.isReady ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[11px] font-black border border-emerald-400/40 uppercase tracking-wider animate-pulse">
+                    ⏰ Horario activo (≥ {reminderSettings.autoDispatchTime || '14:00'} hs)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-bold border border-slate-700">
+                    Disparo diario: {reminderSettings.autoDispatchTime || '14:00'} hs
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                Tenés <strong className="text-white font-bold">{tomorrowTurnos.length}</strong> turno(s) agendados para mañana{' '}
+                {tomorrowPending > 0 ? (
+                  <span className="text-amber-300 font-bold">({tomorrowPending} pendientes de aviso)</span>
+                ) : (
+                  <span className="text-emerald-400 font-bold">(¡todos los avisos fueron enviados! ✓)</span>
+                )}
+                . El sistema dispara automáticamente a las {reminderSettings.autoDispatchTime || '14:00'} hs recordando los turnos de mañana.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setReminderTargetDate(tomorrowDate);
+                setAutoStartRunnerInModal(true);
+                setIsReminderModalOpen(true);
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition active:scale-95"
+            >
+              <Send className="w-4 h-4" />
+              <span>Piloto Automático ({tomorrowPending} pend.)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Header & Calendar Controls */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -317,6 +473,20 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                 className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-pink-500 cursor-pointer"
               />
             </div>
+
+            {/* Quick WhatsApp Reminders for current selected date */}
+            <button
+              type="button"
+              onClick={() => {
+                setReminderTargetDate(selectedDate);
+                setIsReminderModalOpen(true);
+              }}
+              title="Abrir panel de avisos por WhatsApp para la fecha seleccionada"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow-sm"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Avisos WhatsApp</span>
+            </button>
           </div>
         </div>
 
@@ -462,6 +632,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                         {/* Quick edit button */}
                         <div className="flex items-center gap-1">
                           <button
+                            type="button"
+                            onClick={(e) => handleQuickSendWhatsApp(e, slot1Apt)}
+                            className={`p-1.5 rounded-lg transition ${
+                              slot1Apt.reminderSent
+                                ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-slate-800 hover:bg-emerald-950 text-slate-400 hover:text-emerald-400'
+                            }`}
+                            title={
+                              slot1Apt.reminderSent
+                                ? `Aviso WhatsApp ya enviado (${slot1Apt.reminderSentAt || '✓'}). Clic para reenviar`
+                                : 'Enviar aviso de turno por WhatsApp de Erika'
+                            }
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleOpenEditAppointment(slot1Apt)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
                             title="Editar este turno"
@@ -479,11 +665,18 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                       </div>
 
                       {/* Detail row */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-400 italic text-[11px] truncate max-w-[180px]">
-                          {slot1Apt.treatmentNote || 'Sesión general'}
-                        </span>
-                        <span className="text-pink-300 font-bold text-[11px]">
+                      <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-xs gap-2">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-slate-400 italic text-[11px] truncate max-w-[140px]">
+                            {slot1Apt.treatmentNote || 'Sesión general'}
+                          </span>
+                          {slot1Apt.reminderSent && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-bold shrink-0 border border-emerald-500/25">
+                              WhatsApp ✓
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-pink-300 font-bold text-[11px] shrink-0">
                           {professionals.find((p) => p.id === slot1Apt.professionalId)?.name ||
                             'Profesional'}
                         </span>
@@ -544,6 +737,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                         {/* Quick edit button */}
                         <div className="flex items-center gap-1">
                           <button
+                            type="button"
+                            onClick={(e) => handleQuickSendWhatsApp(e, slot2Apt)}
+                            className={`p-1.5 rounded-lg transition ${
+                              slot2Apt.reminderSent
+                                ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-slate-800 hover:bg-emerald-950 text-slate-400 hover:text-emerald-400'
+                            }`}
+                            title={
+                              slot2Apt.reminderSent
+                                ? `Aviso WhatsApp ya enviado (${slot2Apt.reminderSentAt || '✓'}). Clic para reenviar`
+                                : 'Enviar aviso de turno por WhatsApp de Erika'
+                            }
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleOpenEditAppointment(slot2Apt)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
                             title="Editar este turno"
@@ -561,11 +770,18 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                       </div>
 
                       {/* Detail row */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-400 italic text-[11px] truncate max-w-[180px]">
-                          {slot2Apt.treatmentNote || 'Sesión general'}
-                        </span>
-                        <span className="text-purple-300 font-bold text-[11px]">
+                      <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-xs gap-2">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-slate-400 italic text-[11px] truncate max-w-[140px]">
+                            {slot2Apt.treatmentNote || 'Sesión general'}
+                          </span>
+                          {slot2Apt.reminderSent && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-bold shrink-0 border border-emerald-500/25">
+                              WhatsApp ✓
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-purple-300 font-bold text-[11px] shrink-0">
                           {professionals.find((p) => p.id === slot2Apt.professionalId)?.name ||
                             'Profesional'}
                         </span>
@@ -750,9 +966,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                     type="number"
                     min="0"
                     step="500"
+                    placeholder="0"
                     value={modalAmount}
-                    onChange={(e) => setModalAmount(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                    onChange={(e) => setModalAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold placeholder:text-slate-500"
                   />
                 </div>
 
@@ -762,9 +979,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                     type="number"
                     min="0"
                     step="500"
+                    placeholder="0"
                     value={modalPaidAmount}
-                    onChange={(e) => setModalPaidAmount(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-emerald-300 font-bold"
+                    onChange={(e) => setModalPaidAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-emerald-300 font-bold placeholder:text-slate-500"
                   />
                 </div>
               </div>
@@ -871,6 +1089,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Enviar Recordatorios por WhatsApp (Erika Valentini a las 14:00 hs) */}
+      {isReminderModalOpen && (
+        <WhatsAppReminderModal
+          isOpen={isReminderModalOpen}
+          onClose={() => {
+            setIsReminderModalOpen(false);
+            setAutoStartRunnerInModal(false);
+          }}
+          targetDate={reminderTargetDate}
+          appointments={appointments}
+          professionals={professionals}
+          onUpdateAppointments={onAppointmentsChange}
+          autoStartRunner={autoStartRunnerInModal}
+        />
       )}
     </div>
   );

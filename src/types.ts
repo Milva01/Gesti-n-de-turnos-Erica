@@ -25,6 +25,8 @@ export interface Appointment {
   status: AppointmentStatus;
   amount?: number;
   paidAmount?: number;
+  reminderSent?: boolean;
+  reminderSentAt?: string;
   createdAt: string;
 }
 

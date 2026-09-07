@@ -62,8 +62,7 @@ export const getStoredClients = (): ClientRecord[] => {
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Exclude any legacy example clients
-        return parsed.filter((c) => !c.id.startsWith('cli-00'));
+        return parsed;
       }
     }
   } catch (e) {
@@ -87,8 +86,9 @@ export const getStoredAppointments = (): Appointment[] => {
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Exclude any legacy example appointments
-        return parsed.filter((a) => !a.id.startsWith('apt-10'));
+        // Exclude only the old mock seed IDs
+        const legacyMockIds = new Set(['apt-101', 'apt-102', 'apt-103', 'apt-104', 'apt-105']);
+        return parsed.filter((a) => !legacyMockIds.has(a.id));
       }
     }
   } catch (e) {
