@@ -6,6 +6,7 @@ import { ClientsView } from './components/ClientsView';
 import { PWAGuideView } from './components/PWAGuideView';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { CloudSyncModal } from './components/CloudSyncModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ErikaLogo } from './components/ErikaLogo';
 import {
   getStoredAppointments,
@@ -314,43 +315,45 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto pb-16 px-2 sm:px-4 z-10">
-        {/* 1. Profesionales (Reseña editable) */}
-        {activeTab === 'professionals' && (
-          <ProfessionalsView
-            professionals={professionals}
-            appointments={appointments}
-            onProfessionalsChange={handleProfessionalsChange}
-            onNavigateToAgenda={handleNavigateToAgenda}
-          />
-        )}
+        <ErrorBoundary fallbackTitle="Inconveniente al cargar la sección">
+          {/* 1. Profesionales (Reseña editable) */}
+          {activeTab === 'professionals' && (
+            <ProfessionalsView
+              professionals={professionals}
+              appointments={appointments}
+              onProfessionalsChange={handleProfessionalsChange}
+              onNavigateToAgenda={handleNavigateToAgenda}
+            />
+          )}
 
-        {/* 2. Agenda (6:30 a 14:00 con 2 turnos por franja) */}
-        {activeTab === 'agenda' && (
-          <AgendaView
-            appointments={appointments}
-            professionals={professionals}
-            clients={clients}
-            onAppointmentsChange={handleAppointmentsChange}
-            onClientsChange={handleClientsChange}
-            onOpenClientProfile={handleOpenClientProfile}
-            initialProfessionalFilter={agendaProfFilter}
-          />
-        )}
+          {/* 2. Agenda (6:30 a 14:00 con 2 turnos por franja) */}
+          {activeTab === 'agenda' && (
+            <AgendaView
+              appointments={appointments}
+              professionals={professionals}
+              clients={clients}
+              onAppointmentsChange={handleAppointmentsChange}
+              onClientsChange={handleClientsChange}
+              onOpenClientProfile={handleOpenClientProfile}
+              initialProfessionalFilter={agendaProfFilter}
+            />
+          )}
 
-        {/* 3. Ficha de Clientas */}
-        {activeTab === 'clients' && (
-          <ClientsView
-            clients={clients}
-            appointments={appointments}
-            onClientsChange={handleClientsChange}
-            onNavigateToAgendaWithClient={handleNavigateToAgendaWithClient}
-            selectedClientIdToOpen={selectedClientIdToOpen}
-            onClearSelectedClientId={() => setSelectedClientIdToOpen(null)}
-          />
-        )}
+          {/* 3. Ficha de Clientas */}
+          {activeTab === 'clients' && (
+            <ClientsView
+              clients={clients}
+              appointments={appointments}
+              onClientsChange={handleClientsChange}
+              onNavigateToAgendaWithClient={handleNavigateToAgendaWithClient}
+              selectedClientIdToOpen={selectedClientIdToOpen}
+              onClearSelectedClientId={() => setSelectedClientIdToOpen(null)}
+            />
+          )}
 
-        {/* 4. Guía PWA */}
-        {activeTab === 'guide' && <PWAGuideView />}
+          {/* 4. Guía PWA */}
+          {activeTab === 'guide' && <PWAGuideView />}
+        </ErrorBoundary>
       </main>
 
       {/* Footer - No address, No WhatsApp as requested */}
