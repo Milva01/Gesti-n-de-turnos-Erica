@@ -96,9 +96,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   // Search & Filter logic
   const filteredClients = clients.filter((c) => {
     const matchesSearch =
-      c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.technicalNotes && c.technicalNotes.toLowerCase().includes(searchTerm.toLowerCase()));
+      String(c.fullName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(c.phone ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.technicalNotes && String(c.technicalNotes ?? '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!matchesSearch) return false;
 
@@ -412,7 +412,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             </div>
           ) : (
             filteredClients.map((client) => {
-              const initials = client.fullName
+              const initials = String(client.fullName ?? '')
                 .split(' ')
                 .map((n) => n[0])
                 .join('')
@@ -505,7 +505,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <div className="flex items-start justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-pink-600/20 text-pink-400 border border-pink-500/30 flex items-center justify-center font-black text-lg">
-                  {activeClient.fullName.slice(0, 2).toUpperCase()}
+                  {String(activeClient.fullName ?? '').slice(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
