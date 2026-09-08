@@ -63,12 +63,17 @@ export default function App() {
     currentApts: Appointment[]
   ) => {
     if (!currentApts || currentApts.length === 0) return;
+    const safeClients = Array.isArray(currentClients) ? currentClients : [];
     const existingNames = new Set(
-      currentClients.map((c) => c.fullName.trim().toLowerCase())
+      safeClients
+        .filter((c) => Boolean(c && typeof c.fullName === 'string' && c.fullName.trim()))
+        .map((c) => c.fullName.trim().toLowerCase())
     );
     const missingApts = currentApts.filter(
       (a) =>
+        a &&
         a.clientName &&
+        typeof a.clientName === 'string' &&
         a.clientName.trim() &&
         !existingNames.has(a.clientName.trim().toLowerCase())
     );
@@ -262,7 +267,9 @@ export default function App() {
     showToast(`Selecciona un turno disponible para ${client.fullName}`);
   };
 
-  const debtClientsCount = clients.filter((c) => c.balanceDebt > 0).length;
+  const debtClientsCount = Array.isArray(clients)
+    ? clients.filter((c) => Boolean(c && (Number(c.balanceDebt) || 0) > 0)).length
+    : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#07090e] text-slate-100 selection:bg-pink-500 selection:text-white font-sans relative overflow-x-hidden">

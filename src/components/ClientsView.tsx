@@ -29,8 +29,8 @@ import {
 } from 'lucide-react';
 
 interface ClientsViewProps {
-  clients: ClientRecord[];
-  appointments: Appointment[];
+  clients?: ClientRecord[];
+  appointments?: Appointment[];
   onClientsChange: (updated: ClientRecord[]) => void;
   onNavigateToAgendaWithClient?: (client: ClientRecord) => void;
   selectedClientIdToOpen?: string | null;
@@ -38,8 +38,8 @@ interface ClientsViewProps {
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({
-  clients,
-  appointments,
+  clients = [],
+  appointments = [],
   onClientsChange,
   onNavigateToAgendaWithClient,
   selectedClientIdToOpen,
@@ -48,10 +48,30 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debt' | 'upcoming' | 'upToDate'>('all');
 
+  const safeClients = (Array.isArray(clients) ? clients : []).filter(
+    (c): c is ClientRecord => Boolean(c && typeof c === 'object' && c.id)
+  );
+  const safeAppointments = (Array.isArray(appointments) ? appointments : []).filter(
+    (a): a is Appointment => Boolean(a && typeof a === 'object' && a.id)
+  );
+
+  const getInitials = (name?: string | null) => {
+    if (!name || typeof name !== 'string') return 'CL';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'CL';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+  };
+
+  const formatCurrency = (amount?: number | null) => {
+    const val = Number(amount) || 0;
+    return val.toLocaleString('es-AR');
+  };
+
   // Active client file modal state
   const [activeClient, setActiveClient] = useState<ClientRecord | null>(() => {
     if (selectedClientIdToOpen) {
-      return clients.find((c) => c.id === selectedClientIdToOpen) || null;
+      return safeClients.find((c) => c.id === selectedClientIdToOpen) || null;
     }
     return null;
   });
@@ -85,33 +105,40 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   // Auto-sync if selectedClientIdToOpen is triggered from another view
   React.useEffect(() => {
     if (selectedClientIdToOpen) {
-      const found = clients.find((c) => c.id === selectedClientIdToOpen);
+      const found = safeClients.find((c) => c.id === selectedClientIdToOpen);
       if (found) {
         setActiveClient({ ...found });
         onClearSelectedClientId?.();
       }
     }
-  }, [selectedClientIdToOpen, clients]);
+  }, [selectedClientIdToOpen, safeClients]);
 
-  // Search & Filter logic
-  const filteredClients = clients.filter((c) => {
+  // Search & Filter logic with complete defensive checks
+  const filteredClients = safeClients.filter((c) => {
+    const name = String(c.fullName || '').toLowerCase();
+    const phone = String(c.phone || '').toLowerCase();
+    const notes = String(c.technicalNotes || '').toLowerCase();
+    const search = searchTerm.trim().toLowerCase();
+
     const matchesSearch =
-      String(c.fullName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      String(c.phone ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.technicalNotes && String(c.technicalNotes ?? '').toLowerCase().includes(searchTerm.toLowerCase()));
+      !search ||
+      name.includes(search) ||
+      phone.includes(search) ||
+      notes.includes(search);
 
     if (!matchesSearch) return false;
 
-    if (filterType === 'debt') return c.balanceDebt > 0;
-    if (filterType === 'upcoming') return !!c.nextVisit;
-    if (filterType === 'upToDate') return c.balanceDebt === 0;
+    const debt = Number(c.balanceDebt) || 0;
+    if (filterType === 'debt') return debt > 0;
+    if (filterType === 'upcoming') return Boolean(c.nextVisit);
+    if (filterType === 'upToDate') return debt === 0;
     return true;
   });
 
   // Summary Metrics
-  const totalDebt = clients.reduce((acc, c) => acc + (c.balanceDebt || 0), 0);
-  const totalCollected = clients.reduce((acc, c) => acc + (c.totalPaid || 0), 0);
-  const withDebtCount = clients.filter((c) => c.balanceDebt > 0).length;
+  const totalDebt = safeClients.reduce((acc, c) => acc + (Number(c.balanceDebt) || 0), 0);
+  const totalCollected = safeClients.reduce((acc, c) => acc + (Number(c.totalPaid) || 0), 0);
+  const withDebtCount = safeClients.filter((c) => (Number(c.balanceDebt) || 0) > 0).length;
 
   // Save active client modifications
   const handleSaveActiveClient = (updatedData: Partial<ClientRecord>) => {
@@ -119,7 +146,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
     const updated = { ...activeClient, ...updatedData };
     setActiveClient(updated);
     saveClientToFirebase(updated);
-    const updatedList = clients.map((c) => (c.id === updated.id ? updated : c));
+    const updatedList = safeClients.map((c) => (c.id === updated.id ? updated : c));
     onClientsChange(updatedList);
   };
 
@@ -238,7 +265,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
               <AlertTriangle className="w-3.5 h-3.5" /> Saldo Pendiente ("Debe")
             </span>
             <h3 className="text-2xl font-black text-rose-400 mt-1">
-              ${totalDebt.toLocaleString('es-AR')}
+              ${formatCurrency(totalDebt)}
             </h3>
             <span className="text-[11px] text-slate-400">
               {withDebtCount} clientas con saldo deudor
@@ -255,7 +282,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
               <DollarSign className="w-3.5 h-3.5" /> Total Histórico Cobrado
             </span>
             <h3 className="text-2xl font-black text-emerald-400 mt-1">
-              ${totalCollected.toLocaleString('es-AR')}
+              ${formatCurrency(totalCollected)}
             </h3>
             <span className="text-[11px] text-slate-400">Registro de pagos acumulados</span>
           </div>
@@ -412,12 +439,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             </div>
           ) : (
             filteredClients.map((client) => {
-              const initials = String(client.fullName ?? '')
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase();
+              const initials = getInitials(client.fullName);
+              const clientDebt = Number(client.balanceDebt) || 0;
+              const clientPaid = Number(client.totalPaid) || 0;
 
               return (
                 <div
@@ -434,19 +458,19 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-white group-hover:text-pink-400 transition">
-                            {client.fullName}
+                            {client.fullName || 'Sin nombre'}
                           </h4>
                           <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                             <Phone className="w-3 h-3 text-slate-500" />
-                            {client.phone}
+                            {client.phone || 'Sin teléfono'}
                           </span>
                         </div>
                       </div>
 
                       {/* Debt Badge */}
-                      {client.balanceDebt > 0 ? (
+                      {clientDebt > 0 ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">
-                          Debe ${client.balanceDebt.toLocaleString('es-AR')}
+                          Debe ${formatCurrency(clientDebt)}
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
@@ -484,7 +508,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   {/* Bottom Action */}
                   <div className="mt-4 pt-2 flex items-center justify-between text-xs">
                     <span className="text-slate-500 text-[11px]">
-                      Pagado: <strong>${client.totalPaid.toLocaleString('es-AR')}</strong>
+                      Pagado: <strong>${formatCurrency(clientPaid)}</strong>
                     </span>
                     <span className="text-pink-400 font-bold text-xs group-hover:underline flex items-center gap-1">
                       Abrir Ficha &rarr;
@@ -505,23 +529,23 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <div className="flex items-start justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-pink-600/20 text-pink-400 border border-pink-500/30 flex items-center justify-center font-black text-lg">
-                  {String(activeClient.fullName ?? '').slice(0, 2).toUpperCase()}
+                  {getInitials(activeClient.fullName)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-black text-white">{activeClient.fullName}</h3>
-                    {activeClient.balanceDebt > 0 ? (
+                    <h3 className="text-xl font-black text-white">{activeClient.fullName || 'Ficha de Clienta'}</h3>
+                    {(Number(activeClient.balanceDebt) || 0) > 0 ? (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                        Debe ${activeClient.balanceDebt.toLocaleString('es-AR')}
+                        Debe ${formatCurrency(activeClient.balanceDebt)}
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                         Al día
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-                    <span>{activeClient.phone}</span>
+                    <span>{activeClient.phone || 'Sin teléfono'}</span>
                     {activeClient.email && <span>• {activeClient.email}</span>}
                   </p>
                 </div>
@@ -556,7 +580,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                 }`}
               >
                 Cuenta Corriente (Debe y Pagos)
-                {activeClient.balanceDebt > 0 && (
+                {(Number(activeClient.balanceDebt) || 0) > 0 && (
                   <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
                 )}
               </button>
@@ -665,7 +689,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                         type="number"
                         min="0"
                         step="500"
-                        value={activeClient.balanceDebt}
+                        value={activeClient.balanceDebt ?? 0}
                         onChange={(e) =>
                           handleSaveActiveClient({ balanceDebt: Number(e.target.value) })
                         }
@@ -682,10 +706,10 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                       Total Pagado Acumulado
                     </span>
                     <h4 className="text-2xl font-black text-emerald-400 mt-1">
-                      ${activeClient.totalPaid.toLocaleString('es-AR')}
+                      ${formatCurrency(activeClient.totalPaid)}
                     </h4>
                     <span className="text-[10px] text-slate-500 mt-1 block">
-                      {activeClient.payments?.length || 0} pagos registrados en total.
+                      {(activeClient.payments || []).length} pagos registrados en total.
                     </span>
                   </div>
                 </div>
@@ -845,7 +869,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     </p>
                   ) : (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {activeClient.payments.map((p) => (
+                      {(activeClient.payments || []).map((p) => (
                         <div
                           key={p.id}
                           className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px]"
@@ -857,7 +881,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                             </span>
                           </div>
                           <span className="font-black text-emerald-400 text-xs">
-                            +${p.amount.toLocaleString('es-AR')}
+                            +${formatCurrency(p.amount)}
                           </span>
                         </div>
                       ))}
@@ -885,14 +909,30 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   )}
                 </div>
 
-                {appointments.filter((a) => a.clientId === activeClient.id).length === 0 ? (
+                {safeAppointments.filter(
+                  (a) =>
+                    a &&
+                    (a.clientId === activeClient.id ||
+                      (a.clientName &&
+                        activeClient.fullName &&
+                        a.clientName.trim().toLowerCase() ===
+                          activeClient.fullName.trim().toLowerCase()))
+                ).length === 0 ? (
                   <p className="text-slate-500 italic py-4 text-center bg-slate-950 rounded-xl">
                     No registra turnos previos o futuros en la agenda actual.
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-56 overflow-y-auto">
-                    {appointments
-                      .filter((a) => a.clientId === activeClient.id)
+                    {safeAppointments
+                      .filter(
+                        (a) =>
+                          a &&
+                          (a.clientId === activeClient.id ||
+                            (a.clientName &&
+                              activeClient.fullName &&
+                              a.clientName.trim().toLowerCase() ===
+                                activeClient.fullName.trim().toLowerCase()))
+                      )
                       .map((apt) => (
                         <div
                           key={apt.id}
@@ -911,7 +951,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                               {apt.treatmentNote || 'Sesión general'}
                             </span>
                           </div>
-                          <span className="text-pink-400 font-bold">${apt.amount || 0}</span>
+                          <span className="text-pink-400 font-bold">${formatCurrency(apt.amount)}</span>
                         </div>
                       ))}
                   </div>
