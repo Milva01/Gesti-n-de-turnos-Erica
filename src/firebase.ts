@@ -305,6 +305,23 @@ export const saveSalonInfoToFirebase = async (info: SalonInfo) => {
   }
 };
 
+export const fetchAppointmentsByDateFromFirestore = async (dateStr: string): Promise<Appointment[]> => {
+  try {
+    const snap = await getDocs(appointmentsCol);
+    const list: Appointment[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as Appointment;
+      if (data && data.date === dateStr) {
+        list.push({ ...data, id: docSnap.id });
+      }
+    });
+    return list;
+  } catch (error) {
+    console.error(`Error fetching appointments for date ${dateStr} from Firestore:`, error);
+    return [];
+  }
+};
+
 // Live connectivity diagnostic test
 export const testFirestoreConnection = async (): Promise<{
   ok: boolean;
