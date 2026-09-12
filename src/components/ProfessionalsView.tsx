@@ -220,6 +220,10 @@ export const ProfessionalsView: React.FC<ProfessionalsViewProps> = ({
                       <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
                         {[
                           {
+                            name: 'Foto Oficial de Erica',
+                            url: '/erica.jpg',
+                          },
+                          {
                             name: 'Estilista 1 (Rubia)',
                             url: 'https://images.unsplash.com/photo-1595152772835-219674b2a8a6?w=400&auto=format&fit=crop&q=80',
                           },

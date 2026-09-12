@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import {
   initializeFirestore,
   memoryLocalCache,
@@ -27,7 +28,7 @@ const EMBEDDED_FIREBASE_CONFIG = {
 
 const rawConfig = appletConfig || ({} as any);
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawConfig.apiKey || EMBEDDED_FIREBASE_CONFIG.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawConfig.authDomain || EMBEDDED_FIREBASE_CONFIG.authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawConfig.projectId || EMBEDDED_FIREBASE_CONFIG.projectId,
@@ -36,9 +37,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || rawConfig.appId || EMBEDDED_FIREBASE_CONFIG.appId,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-const targetDatabaseId =
+export const targetDatabaseId =
   import.meta.env.VITE_FIRESTORE_DATABASE_ID ||
   rawConfig.firestoreDatabaseId ||
   EMBEDDED_FIREBASE_CONFIG.firestoreDatabaseId;
@@ -61,6 +62,7 @@ try {
 
 // Connect to the provisioned database with offline persistence & multi-tab sync
 export const db = firestoreInstance;
+export const auth = getAuth(app);
 
 // Helper to eliminate `undefined` fields which cause Firestore write errors
 export const cleanForFirestore = <T>(data: T): any => {
@@ -86,7 +88,20 @@ export const subscribeToClients = (
     (snapshot) => {
       const items: ClientRecord[] = [];
       snapshot.forEach((docSnap) => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as ClientRecord);
+        const d = docSnap.data() || {};
+        items.push({
+          id: docSnap.id,
+          fullName: d.fullName || 'Sin nombre',
+          phone: d.phone || 'Sin teléfono',
+          email: d.email || undefined,
+          technicalNotes: d.technicalNotes || undefined,
+          lastVisit: d.lastVisit || undefined,
+          nextVisit: d.nextVisit || undefined,
+          balanceDebt: Number(d.balanceDebt) || 0,
+          totalPaid: Number(d.totalPaid) || 0,
+          payments: Array.isArray(d.payments) ? d.payments : [],
+          createdAt: d.createdAt || new Date().toISOString(),
+        } as ClientRecord);
       });
       callback(items, snapshot.empty);
     },
@@ -106,7 +121,24 @@ export const subscribeToAppointments = (
     (snapshot) => {
       const items: Appointment[] = [];
       snapshot.forEach((docSnap) => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as Appointment);
+        const d = docSnap.data() || {};
+        items.push({
+          id: docSnap.id,
+          date: d.date || '',
+          time: d.time || '',
+          slotNumber: Number(d.slotNumber) || 1,
+          professionalId: d.professionalId || '',
+          clientId: d.clientId || undefined,
+          clientName: d.clientName || '',
+          clientPhone: d.clientPhone || '',
+          treatmentNote: d.treatmentNote || '',
+          status: d.status || 'pendiente',
+          amount: Number(d.amount) || 0,
+          paidAmount: Number(d.paidAmount) || 0,
+          reminderSent: Boolean(d.reminderSent),
+          reminderSentAt: d.reminderSentAt || undefined,
+          createdAt: d.createdAt || new Date().toISOString(),
+        } as Appointment);
       });
       callback(items, snapshot.empty);
     },

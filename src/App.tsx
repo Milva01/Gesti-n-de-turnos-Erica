@@ -16,6 +16,7 @@ import {
   saveStoredAppointments,
   saveStoredClients,
   saveStoredProfessionals,
+  saveStoredSalonInfo,
   getDeletedClientIds,
   getDeletedAppointmentIds,
 } from './utils/storage';
@@ -24,6 +25,7 @@ import {
   subscribeToClients,
   subscribeToAppointments,
   subscribeToProfessionals,
+  subscribeToSalonInfo,
   saveClientToFirebase,
   saveAppointmentToFirebase,
   syncAllClientsToFirebase,
@@ -41,15 +43,12 @@ export default function App() {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [salonInfo] = useState<SalonInfo>(getStoredSalonInfo());
+  const [salonInfo, setSalonInfo] = useState<SalonInfo>(getStoredSalonInfo());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
   const [cloudErrorMessage, setCloudErrorMessage] = useState<string | null>(null);
-
-  // Avoid circular sync loops
-  const isSyncingFromCloudRef = useRef(false);
 
   // Cross-navigation helpers
   const [selectedClientIdToOpen, setSelectedClientIdToOpen] = useState<string | null>(null);
@@ -58,66 +57,15 @@ export default function App() {
   const clientsRef = useRef<ClientRecord[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
 
-  const autoReconcileMissingClients = (
-    currentClients: ClientRecord[],
-    currentApts: Appointment[]
-  ) => {
-    if (!currentApts || currentApts.length === 0) return;
-    const safeClients = Array.isArray(currentClients) ? currentClients : [];
-    const existingNames = new Set(
-      safeClients
-        .filter((c) => Boolean(c && typeof c.fullName === 'string' && c.fullName.trim()))
-        .map((c) => c.fullName.trim().toLowerCase())
-    );
-    const missingApts = currentApts.filter(
-      (a) =>
-        a &&
-        a.clientName &&
-        typeof a.clientName === 'string' &&
-        a.clientName.trim() &&
-        !existingNames.has(a.clientName.trim().toLowerCase())
-    );
-
-    if (missingApts.length === 0) return;
-
-    const createdList: ClientRecord[] = [];
-    const seenNames = new Set<string>();
-
-    missingApts.forEach((apt) => {
-      const nameKey = apt.clientName.trim().toLowerCase();
-      if (!seenNames.has(nameKey)) {
-        seenNames.add(nameKey);
-        const newRecord: ClientRecord = {
-          id: apt.clientId || `cli-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          fullName: apt.clientName.trim(),
-          phone: apt.clientPhone?.trim() || 'Sin teléfono',
-          createdAt: apt.createdAt || new Date().toISOString(),
-          nextVisit: apt.date,
-          balanceDebt: 0,
-          totalPaid: 0,
-          payments: [],
-          technicalNotes: apt.treatmentNote ? `Tratamiento: ${apt.treatmentNote}` : undefined,
-        };
-        createdList.push(newRecord);
-        saveClientToFirebase(newRecord);
-      }
-    });
-
-    if (createdList.length > 0) {
-      const updated = [...currentClients, ...createdList];
-      clientsRef.current = updated;
-      setClients(updated);
-      saveStoredClients(updated);
-    }
-  };
-
   const loadLocalData = () => {
     const profs = getStoredProfessionals();
     const cls = getStoredClients();
     const apts = getStoredAppointments();
+    const info = getStoredSalonInfo();
     setProfessionals(profs);
     setClients(cls);
     setAppointments(apts);
+    setSalonInfo(info);
     clientsRef.current = cls;
     appointmentsRef.current = apts;
   };
@@ -147,21 +95,9 @@ export default function App() {
       (cloudClients) => {
         setCloudSyncStatus('connected');
         setCloudErrorMessage(null);
-        const local = getStoredClients() || [];
-        const deletedIds = getDeletedClientIds();
-        const cloudMap = new Map(cloudClients.map((c) => [c.id, c]));
-
-        // Merge local items that are not yet recognized by Firestore and not intentionally deleted
-        const unsyncedLocal = local.filter((c) => !cloudMap.has(c.id) && !deletedIds.has(c.id));
-        if (unsyncedLocal.length > 0) {
-          syncAllClientsToFirebase(unsyncedLocal);
-        }
-
-        const mergedClients = [...cloudClients, ...unsyncedLocal];
-        clientsRef.current = mergedClients;
-        setClients(mergedClients);
-        saveStoredClients(mergedClients);
-        autoReconcileMissingClients(mergedClients, appointmentsRef.current);
+        clientsRef.current = cloudClients;
+        setClients(cloudClients);
+        saveStoredClients(cloudClients);
       },
       (err) => {
         setCloudSyncStatus('error');
@@ -173,21 +109,9 @@ export default function App() {
       (cloudApts) => {
         setCloudSyncStatus('connected');
         setCloudErrorMessage(null);
-        const local = getStoredAppointments() || [];
-        const deletedAptIds = getDeletedAppointmentIds();
-        const cloudAptMap = new Map(cloudApts.map((a) => [a.id, a]));
-
-        // Merge local appointments that are not yet recognized by Firestore and not intentionally deleted
-        const unsyncedApts = local.filter((a) => !cloudAptMap.has(a.id) && !deletedAptIds.has(a.id));
-        if (unsyncedApts.length > 0) {
-          syncAllAppointmentsToFirebase(unsyncedApts);
-        }
-
-        const mergedApts = [...cloudApts, ...unsyncedApts];
-        appointmentsRef.current = mergedApts;
-        setAppointments(mergedApts);
-        saveStoredAppointments(mergedApts);
-        autoReconcileMissingClients(clientsRef.current, mergedApts);
+        appointmentsRef.current = cloudApts;
+        setAppointments(cloudApts);
+        saveStoredAppointments(cloudApts);
       },
       (err) => {
         setCloudSyncStatus('error');
@@ -209,16 +133,24 @@ export default function App() {
       }
     });
 
+    const unsubSalon = subscribeToSalonInfo((cloudInfo) => {
+      if (cloudInfo && cloudInfo.name) {
+        setSalonInfo(cloudInfo);
+        saveStoredSalonInfo(cloudInfo);
+      }
+    });
+
     return () => {
       unsubClients();
       unsubAppointments();
       unsubProfessionals();
+      unsubSalon();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Update handlers with dual persistence (Local Cache + Firebase Cloud)
+  // Update handlers with reactive local persistence
   const handleProfessionalsChange = (updated: Professional[]) => {
     setProfessionals(updated);
     saveStoredProfessionals(updated);
@@ -229,13 +161,11 @@ export default function App() {
   const handleClientsChange = (updated: ClientRecord[]) => {
     setClients(updated);
     saveStoredClients(updated);
-    syncAllClientsToFirebase(updated);
   };
 
   const handleAppointmentsChange = (updated: Appointment[]) => {
     setAppointments(updated);
     saveStoredAppointments(updated);
-    syncAllAppointmentsToFirebase(updated);
     showToast('Agenda sincronizada');
   };
 

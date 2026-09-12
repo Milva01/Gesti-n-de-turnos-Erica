@@ -21,6 +21,7 @@ import {
   Send,
 } from 'lucide-react';
 import { WhatsAppReminderModal } from './WhatsAppReminderModal';
+import { TomorrowReminderModal } from './TomorrowReminderModal';
 import {
   saveAppointmentToFirebase,
   deleteAppointmentFromFirebase,
@@ -86,6 +87,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // WhatsApp 14:00 hs Reminder Modal State
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [isTomorrowReminderModalOpen, setIsTomorrowReminderModalOpen] = useState(false);
   const [autoStartRunnerInModal, setAutoStartRunnerInModal] = useState(false);
   const [reminderTargetDate, setReminderTargetDate] = useState<string>(getTomorrowDateStr());
 
@@ -453,14 +455,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button
               type="button"
+              onClick={() => setIsTomorrowReminderModalOpen(true)}
+              className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition active:scale-95"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Enviar Recordatorios de Mañana</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setReminderTargetDate(tomorrowDate);
                 setAutoStartRunnerInModal(true);
                 setIsReminderModalOpen(true);
               }}
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition active:scale-95"
+              className="px-3.5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 transition active:scale-95"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-4 h-4 text-emerald-400" />
               <span>Piloto Automático ({tomorrowPending} pend.)</span>
             </button>
           </div>
@@ -522,6 +532,23 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
               />
             </div>
 
+            {/* Botón solicitado: 'Enviar Recordatorios de Mañana' */}
+            <button
+              id="send-tomorrow-reminders-btn"
+              type="button"
+              onClick={() => setIsTomorrowReminderModalOpen(true)}
+              title="Identifica los turnos de mañana con teléfono y abre chat de WhatsApp con wa.me/NUMERO?text=MENSAJE"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-md shadow-emerald-600/25 transition active:scale-95"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-100" />
+              <span>Enviar Recordatorios de Mañana</span>
+              {tomorrowTurnos.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-bold">
+                  {tomorrowTurnos.length}
+                </span>
+              )}
+            </button>
+
             {/* Quick WhatsApp Reminders for current selected date */}
             <button
               type="button"
@@ -530,10 +557,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                 setIsReminderModalOpen(true);
               }}
               title="Abrir panel de avisos por WhatsApp para la fecha seleccionada"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition shadow-sm"
             >
               <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Avisos WhatsApp</span>
+              <span className="hidden sm:inline">Avisos del Día</span>
             </button>
           </div>
         </div>
@@ -1137,6 +1164,18 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Enviar Recordatorios de Mañana con wa.me/NUMERO?text=MENSAJE */}
+      {isTomorrowReminderModalOpen && (
+        <TomorrowReminderModal
+          isOpen={isTomorrowReminderModalOpen}
+          onClose={() => setIsTomorrowReminderModalOpen(false)}
+          tomorrowDate={tomorrowDate}
+          tomorrowAppointments={tomorrowTurnos}
+          professionals={professionals}
+          onAppointmentsChange={onAppointmentsChange}
+        />
       )}
 
       {/* MODAL: Enviar Recordatorios por WhatsApp (Erika Valentini a las 14:00 hs) */}

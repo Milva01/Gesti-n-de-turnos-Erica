@@ -26,6 +26,7 @@ import {
   CheckCheck,
 } from 'lucide-react';
 import { Appointment, Professional } from '../types';
+import { saveAppointmentToFirebase } from '../firebase';
 import {
   buildReminderMessage,
   cleanPhoneForWhatsApp,
@@ -182,8 +183,10 @@ export const WhatsAppReminderModal: React.FC<WhatsAppReminderModalProps> = ({
 
     // Mark as sent in appointment and update state + Firebase
     const nowStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const updatedApt = { ...apt, reminderSent: true, reminderSentAt: nowStr };
+    saveAppointmentToFirebase(updatedApt);
     const updated = appointments.map((a) =>
-      a.id === apt.id ? { ...a, reminderSent: true, reminderSentAt: nowStr } : a
+      a.id === apt.id ? updatedApt : a
     );
     handleAppointmentsUpdate(updated);
 
@@ -226,34 +229,43 @@ export const WhatsAppReminderModal: React.FC<WhatsAppReminderModalProps> = ({
   };
 
   const handleToggleSentStatus = (apt: Appointment) => {
+    const isNowSent = !apt.reminderSent;
+    const updatedApt: Appointment = {
+      ...apt,
+      reminderSent: isNowSent,
+      reminderSentAt: isNowSent
+        ? new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+        : undefined,
+    };
+    saveAppointmentToFirebase(updatedApt);
     const updated = appointments.map((a) =>
-      a.id === apt.id
-        ? {
-            ...a,
-            reminderSent: !a.reminderSent,
-            reminderSentAt: !a.reminderSent
-              ? new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-              : undefined,
-          }
-        : a
+      a.id === apt.id ? updatedApt : a
     );
     handleAppointmentsUpdate(updated);
   };
 
   const handleMarkAllAsSent = () => {
     const nowStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    const updated = appointments.map((a) =>
-      a.date === targetDate && a.status !== 'cancelado'
-        ? { ...a, reminderSent: true, reminderSentAt: nowStr }
-        : a
-    );
+    const updated = appointments.map((a) => {
+      if (a.date === targetDate && a.status !== 'cancelado') {
+        const u = { ...a, reminderSent: true, reminderSentAt: nowStr };
+        saveAppointmentToFirebase(u);
+        return u;
+      }
+      return a;
+    });
     handleAppointmentsUpdate(updated);
   };
 
   const handleResetAllSent = () => {
-    const updated = appointments.map((a) =>
-      a.date === targetDate ? { ...a, reminderSent: false, reminderSentAt: undefined } : a
-    );
+    const updated = appointments.map((a) => {
+      if (a.date === targetDate) {
+        const u = { ...a, reminderSent: false, reminderSentAt: undefined };
+        saveAppointmentToFirebase(u);
+        return u;
+      }
+      return a;
+    });
     handleAppointmentsUpdate(updated);
   };
 

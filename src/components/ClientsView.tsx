@@ -113,6 +113,28 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
     }
   }, [selectedClientIdToOpen, safeClients]);
 
+  // Keep active client in sync with real-time updates from Firestore onSnapshot
+  React.useEffect(() => {
+    if (activeClient) {
+      const found = safeClients.find((c) => c.id === activeClient.id);
+      if (found) {
+        if (
+          found.fullName !== activeClient.fullName ||
+          found.phone !== activeClient.phone ||
+          found.email !== activeClient.email ||
+          found.balanceDebt !== activeClient.balanceDebt ||
+          found.totalPaid !== activeClient.totalPaid ||
+          found.lastVisit !== activeClient.lastVisit ||
+          found.nextVisit !== activeClient.nextVisit ||
+          found.technicalNotes !== activeClient.technicalNotes ||
+          (found.payments?.length || 0) !== (activeClient.payments?.length || 0)
+        ) {
+          setActiveClient(found);
+        }
+      }
+    }
+  }, [safeClients]);
+
   // Search & Filter logic with complete defensive checks
   const filteredClients = safeClients.filter((c) => {
     const name = String(c.fullName || '').toLowerCase();

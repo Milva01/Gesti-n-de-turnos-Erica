@@ -13,11 +13,11 @@ export const initialSalonInfo: SalonInfo = {
 export const initialProfessionals: Professional[] = [
   {
     id: 'prof-1',
-    name: 'Erika Valentini',
+    name: 'Erica Valentini',
     role: 'Directora Creativa & Master Stylist',
-    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
+    avatarUrl: '/erica.jpg',
     specialty: 'Diseño de Corte de Autor, Colorimetría Avanzada & Asesoría de Imagen',
-    bio: 'Con más de 15 años de trayectoria en alta peluquería, Erika lidera el salón combinando técnicas europeas con un trato personalizado. Su enfoque busca resaltar la esencia natural de cada clienta a través de formas armónicas, brillo duradero y un cuidado minucioso de la fibra capilar.',
+    bio: 'Con más de 25 años de trayectoria en alta peluquería, Erica lidera el salón combinando técnicas de vanguardia con un trato cálido y personalizado. Su enfoque busca resaltar la esencia natural de cada clienta con brillo, armonía y cuidado profundo de la salud capilar.',
     phone: '+54 9 11 5555-1001',
     rating: 4.98,
     reviewsCount: 312,
